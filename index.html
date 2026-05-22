@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نظام فلج - إدارة جداول السقي</title>
+    <meta name="description" content="نظام إلكتروني متكامل لإدارة جداول السقي في الأفلاج التقليدية">
+    
+    <!-- PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="icon.svg">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary: #0ea5e9; --primary-dark: #0284c7; --primary-light: #e0f2fe; --primary-glow: rgba(14, 165, 233, 0.25);
+            --teal: #14b8a6; --teal-dark: #0f766e; --gold: #f59e0b; --gold-light: #fef3c7;
+            --bg: #0f172a; --bg-2: #1e293b; --bg-3: #334155;
+            --surface: rgba(30, 41, 59, 0.85); --surface-2: rgba(51, 65, 85, 0.6);
+            --border: rgba(148, 163, 184, 0.15); --border-light: rgba(148, 163, 184, 0.08);
+            --text: #f1f5f9; --text-muted: #94a3b8; --text-dim: #64748b;
+            --success: #22c55e; --danger: #ef4444; --warning: #f59e0b; --whatsapp: #25D366;
+            --radius: 16px; --radius-lg: 24px; --radius-xl: 32px;
+        }
+
+        html { scroll-behavior: smooth; }
+        body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.6; overflow-x: hidden; padding-bottom: 80px; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-2); }
+        ::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--primary); }
+
+        .app-bg { min-height: 100vh; background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.15) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 60%, rgba(20, 184, 166, 0.08) 0%, transparent 50%), var(--bg); }
+
+        .header { position: sticky; top: 0; z-index: 100; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid var(--border); padding: 0 24px; }
+        .header-inner { max-width: 1280px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; height: 72px; gap: 16px; }
+        .logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .logo-icon { width: 44px; height: 44px; background: linear-gradient(135deg, var(--primary), var(--teal)); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 16px var(--primary-glow); }
+        .logo-text { font-size: 22px; font-weight: 800; color: var(--text); }
+        .logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; letter-spacing: 0.5px; }
+
+        .nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+        .nav::-webkit-scrollbar { display: none; }
+        .nav-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 10px; border: none; background: transparent; color: var(--text-muted); font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .nav-btn:hover { background: var(--surface-2); color: var(--text); }
+        .nav-btn.active { background: var(--primary-glow); color: var(--primary); }
+        .nav-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+        .main { max-width: 1280px; margin: 0 auto; padding: 32px 24px 64px; }
+
+        .card { background: var(--surface); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+        .card-glow { box-shadow: 0 0 0 1px var(--border), 0 8px 32px rgba(0,0,0,0.3); }
+
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
+        @media (max-width: 768px) { .status-grid { grid-template-columns: 1fr; } .main { padding: 20px 16px 48px; } .header-inner { padding: 0 16px; } .header { padding: 0; } }
+
+        /* Clock Widget */
+        .big-clock-wrap { text-align: center; margin-bottom: 32px; padding: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: 0 8px 32px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .big-clock-wrap::before { content: ''; position: absolute; inset: 0; background: linear-gradient(135deg, rgba(14,165,233,0.1) 0%, transparent 100%); pointer-events: none; }
+        .big-clock-time { font-family: 'JetBrains Mono', monospace; font-size: clamp(36px, 8vw, 80px); font-weight: 700; color: var(--primary-light); text-shadow: 0 0 20px var(--primary-glow); line-height: 1; direction: ltr; margin-bottom: 8px; letter-spacing: -2px; }
+        .big-clock-date { font-size: 16px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px; }
+
+        .current-card { position: relative; overflow: hidden; border-radius: var(--radius-xl); padding: clamp(20px, 4vw, 32px); color: white; background: linear-gradient(135deg, #0284c7 0%, #0f766e 100%); box-shadow: 0 20px 60px rgba(2, 132, 199, 0.3), inset 0 1px 0 rgba(255,255,255,0.1); transition: all 0.5s ease; }
+        .current-card.ending-soon { background: linear-gradient(135deg, #dc2626 0%, #c2410c 100%); box-shadow: 0 20px 60px rgba(220, 38, 38, 0.35), inset 0 1px 0 rgba(255,255,255,0.1); }
+        .current-card.no-active { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+
+        .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+        .badge-glass { background: rgba(255,255,255,0.15); backdrop-filter: blur(8px); color: white; }
+        .badge-danger { background: rgba(220,38,38,0.3); color: #fca5a5; }
+        .badge-primary { background: var(--primary-glow); color: var(--primary); border: 1px solid rgba(14,165,233,0.3); }
+        .badge-success { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.3); }
+        .badge-gold { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.3); }
+        .badge-indigo { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+
+        .pulse-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse-dot 2s infinite; }
+        @keyframes pulse-dot { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.5; transform: scale(1.3); } }
+
+        .current-name { font-size: clamp(24px, 5vw, 52px); font-weight: 900; margin: 20px 0 8px; line-height: 1.1; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .info-chip { background: rgba(0,0,0,0.2); backdrop-filter: blur(8px); border-radius: 12px; padding: 12px 16px; }
+        .countdown { font-family: 'JetBrains Mono', monospace; font-size: clamp(20px, 4vw, 28px); font-weight: 700; letter-spacing: 1px; direction: ltr; }
+        .countdown .secs { color: rgba(255,255,255,0.6); }
+
+        .next-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: clamp(20px, 4vw, 32px); position: relative; overflow: hidden; }
+        .next-accent { position: absolute; top: 0; right: 0; width: 4px; height: 100%; background: linear-gradient(to bottom, var(--primary), var(--teal)); }
+        .next-name { font-size: clamp(20px, 4vw, 26px); font-weight: 800; color: var(--text); margin: 16px 0 6px; }
+
+        .info-row { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border-light); border-radius: 10px; padding: 10px 14px; font-size: 14px; color: var(--text-muted); flex-wrap: wrap; }
+        .info-row svg { color: var(--primary); flex-shrink: 0; }
+        .info-row strong { color: var(--text); font-family: 'JetBrains Mono', monospace; }
+
+        .schedule-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; min-width: 700px; text-align: right; }
+        thead tr { background: var(--surface-2); border-bottom: 1px solid var(--border); }
+        th { padding: 14px 16px; font-size: 12px; font-weight: 700; color: var(--text-dim); text-transform: uppercase; white-space: nowrap; }
+        td { padding: 14px 16px; font-size: 14px; color: var(--text-muted); vertical-align: middle; white-space: nowrap; }
+        tbody tr { border-bottom: 1px solid var(--border-light); transition: background 0.15s; }
+        tbody tr:hover { background: rgba(255,255,255,0.03); }
+        tbody tr.row-active { background: rgba(14, 165, 233, 0.08); }
+        tbody tr.row-next { background: rgba(99, 102, 241, 0.06); }
+        .person-name { font-weight: 700; font-size: 15px; color: var(--text); }
+        .period-day { background: rgba(245,158,11,0.15); color: #fde68a; border: 1px solid rgba(245,158,11,0.25); }
+        .period-night { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+
+        .search-wrap { position: relative; max-width: 480px; margin: 0 auto 32px; width: 100%; }
+        .search-icon { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-dim); pointer-events: none; }
+        .search-input { width: 100%; background: var(--surface-2); border: 2px solid var(--border); border-radius: var(--radius); padding: 14px 48px 14px 16px; font-family: 'Cairo', sans-serif; font-size: 16px; color: var(--text); outline: none; transition: all 0.2s; }
+        .search-input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px var(--primary-glow); }
+
+        .schedule-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; transition: all 0.2s; margin-bottom: 12px; }
+        .schedule-item.is-current { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 8px 24px var(--primary-glow); }
+        
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-label { font-size: 13px; font-weight: 700; color: var(--text-muted); }
+        .form-input, .form-select { background: var(--bg-2); border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px; font-family: 'Cairo', sans-serif; font-size: 14px; color: var(--text); outline: none; width: 100%; }
+        .form-input:focus, .form-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-glow); }
+
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border-radius: 10px; border: none; font-family: 'Cairo', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 16px var(--primary-glow); }
+        .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+        .btn-success { background: var(--success); color: white; box-shadow: 0 4px 16px rgba(34,197,94,0.25); }
+        .btn-success:hover { background: #16a34a; transform: translateY(-1px); }
+        .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+        .btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+        .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.25); }
+        .btn-sm { padding: 6px 12px; font-size: 13px; }
+        .btn-icon { padding: 8px; }
+
+        .auth-card { max-width: 420px; margin: 60px auto 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 48px 40px; text-align: center; }
+        @media (max-width: 480px) { .auth-card { padding: 32px 20px; margin-top: 30px; } }
+        
+        .section-title { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 20px; }
+        .section-title svg { color: var(--primary); }
+
+        .empty-state { text-align: center; padding: 48px 24px; color: var(--text-dim); }
+        .empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin: 0 auto 12px; display: block; }
+
+        .animate-in { animation: fadeIn 0.4s ease forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .blink { animation: blink 1.5s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        .divider { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+        .row-label { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; margin-right: 6px; }
+
+        .floating-whatsapp { position: fixed; bottom: 24px; right: 24px; width: 60px; height: 60px; background: var(--whatsapp); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4); z-index: 1000; transition: all 0.3s ease; text-decoration: none; }
+        .floating-whatsapp:hover { transform: scale(1.1) rotate(-5deg); box-shadow: 0 6px 24px rgba(37, 211, 102, 0.5); }
+        .floating-whatsapp svg { width: 32px; height: 32px; fill: currentColor; }
+        
+        .tool-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
+        .prayer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 16px; }
+        .prayer-item { background: var(--bg-2); border: 1px solid var(--border-light); border-radius: 12px; padding: 12px; text-align: center; }
+        .prayer-name { font-size: 13px; color: var(--text-muted); font-weight: 700; margin-bottom: 4px; }
+        .prayer-time { font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--text); font-weight: 700; direction: ltr;}
+
+        .dict-item { background: var(--bg-2); padding: 16px; border-radius: 12px; border: 1px solid var(--border-light); margin-bottom: 12px; }
+        .dict-term { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 4px; display: flex; align-items: center; gap: 8px;}
+        .dict-term::before { content: ''; width: 6px; height: 6px; background: var(--primary); border-radius: 50%; }
+        .dict-desc { font-size: 14px; color: var(--text-muted); padding-right: 14px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useCallback, useRef } = React;
+
+        const Ic = {
+            Drop: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>,
+            User: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="7" r="4"/><path d="M5.5 20a7 7 0 0 1 13 0"/></svg>,
+            Layout: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>,
+            Shield: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>,
+            Bell: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+            BellOff: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+            Clock: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            Cal: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+            List: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>,
+            Search: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            Lock: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
+            Logout: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+            Edit: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+            Plus: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            Check: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
+            Trash: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+            X: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Moon: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
+            Sun: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+            Next: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 8 16 12 12 16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>,
+            Coffee: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>,
+            Wrench: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
+            Send: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>,
+            Book: (p) => <svg {...p} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        };
+
+        const DAYS = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+        const EMPTY_FORM = { name:"", number:"", day:"", date:"", time:"", period:"نهار", raddahName:"", athar:"" };
+        const ADMIN_PASSWORD = "Asdf@#$1234";
+        const WHATSAPP_NUM = "+96896017822";
+
+        function fmt(n) { return String(n).padStart(2,'0'); }
+        function formatDateAr(dateStr) {
+            if (!dateStr) return '';
+            try { const [y,m,d] = dateStr.split('-'); return `${d}/${m}/${y}`; } catch { return dateStr; }
+        }
+
+        // Helper to format 24h to 12h
+        function format12h(timeStr) {
+            if(!timeStr) return '';
+            try {
+                let [h, m] = timeStr.split(':').map(Number);
+                const ampm = h >= 12 ? 'م' : 'ص';
+                h = h % 12;
+                h = h ? h : 12; // 0 becomes 12
+                return `${fmt(h)}:${fmt(m)} ${ampm}`;
+            } catch(e) { return timeStr; }
+        }
+
+        /* ── Audio Context for Notifications ── */
+        function playBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 1);
+                osc.stop(ctx.currentTime + 1);
+            } catch(e) {}
+        }
+
+        /* ── App ─────────────────────────────────────────────────────── */
+        function App() {
+            const [view, setView] = useState('public');
+            const [records, setRecords] = useState(() => {
+                try {
+                    const s = localStorage.getItem("falaj-v5");
+                    if (s) return JSON.parse(s);
+                    const old = localStorage.getItem("falaj-v4") || localStorage.getItem("falaj-v3") || localStorage.getItem("falaj-records-v2");
+                    if (old) return JSON.parse(old).map(r => ({...r, athar: r.athar || ""}));
+                } catch(e) {}
+                return [];
+            });
+            const [subs, setSubs] = useState(() => {
+                try { const s = localStorage.getItem("falaj-subs"); return s ? JSON.parse(s) : []; } catch(e) { return []; }
+            });
+
+            const [form, setForm] = useState(EMPTY_FORM);
+            const [now, setNow] = useState(new Date());
+            const [searchQuery, setSearchQuery] = useState("");
+            const [editingId, setEditingId] = useState(null);
+            const [adminPass, setAdminPass] = useState("");
+            const [isAdminAuth, setIsAdminAuth] = useState(false);
+            const [notification, setNotification] = useState(null);
+            const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+            
+            // Tools State
+            const [swapForm, setSwapForm] = useState({ me:"", other:"", reason:"" });
+            const [prayerTimes, setPrayerTimes] = useState(null);
+            
+            // PWA Install Prompt State
+            const [deferredPrompt, setDeferredPrompt] = useState(null);
+
+            // Time updater
+            useEffect(() => {
+                const t = setInterval(() => setNow(new Date()), 1000);
+                return () => clearInterval(t);
+            }, []);
+
+            // Save records
+            useEffect(() => { try { localStorage.setItem("falaj-v5", JSON.stringify(records)); } catch(e) {} }, [records]);
+            // Save subs
+            useEffect(() => { try { localStorage.setItem("falaj-subs", JSON.stringify(subs)); } catch(e) {} }, [subs]);
+
+            // PWA Install Event Listener
+            useEffect(() => {
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    setDeferredPrompt(e);
+                });
+            }, []);
+
+            const handleInstallClick = () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            setDeferredPrompt(null);
+                        }
+                    });
+                }
+            };
+
+            const showNotif = useCallback((msg, type='success') => {
+                setNotification({ msg, type });
+                setTimeout(() => setNotification(null), 3000);
+            }, []);
+
+            // Request Notification Permission
+            const toggleSubscription = (id) => {
+                if (subs.includes(id)) {
+                    setSubs(subs.filter(sid => sid !== id));
+                    showNotif("تم إلغاء التنبيه");
+                } else {
+                    if ("Notification" in window) {
+                        Notification.requestPermission().then(perm => {
+                            if (perm === "granted") {
+                                setSubs([...subs, id]);
+                                showNotif("تم تفعيل التنبيه بنجاح");
+                            } else {
+                                alert("يجب تفعيل الإشعارات من إعدادات المتصفح لتعمل هذه الميزة.");
+                            }
+                        });
+                    } else {
+                        alert("متصفحك لا يدعم الإشعارات.");
+                    }
+                }
+            };
+
+            /* ── Processed Records ── */
+            const processedRecords = useMemo(() => {
+                if (!records.length) return [];
+                let sorted = records.map(r => {
+                    const [yr,mo,dy] = r.date.split('-').map(Number);
+                    const [hr,mn] = r.time.split(':').map(Number);
+                    const dt = new Date(yr, mo-1, dy, hr, mn, 0);
+                    return { ...r, startDateTime: dt, startMs: dt.getTime() };
+                }).sort((a,b) => a.startMs - b.startMs);
+
+                for (let i=0; i<sorted.length; i++) {
+                    const atharVal = parseFloat(sorted[i].athar);
+                    if (atharVal && atharVal > 0) {
+                        // Athar is 30 mins each
+                        sorted[i].endMs = sorted[i].startMs + (atharVal * 30 * 60 * 1000);
+                    } else if (i < sorted.length-1) {
+                        sorted[i].endMs = sorted[i+1].startMs;
+                    } else {
+                        sorted[i].endMs = sorted[i].startMs + 24*60*60*1000;
+                    }
+                }
+                return sorted;
+            }, [records]);
+
+            /* ── Live Status ── */
+            const status = useMemo(() => {
+                const ms = now.getTime();
+                const current = processedRecords.find(r => ms >= r.startMs && ms < r.endMs) || null;
+                const upcoming = processedRecords.filter(r => r.startMs > ms);
+                const next = upcoming[0] || null;
+
+                let tr = null, isEndingSoon = false, nextTr = null;
+
+                if (current) {
+                    const d = current.endMs - ms;
+                    tr = { h: Math.floor(d/3600000), m: Math.floor((d%3600000)/60000), s: Math.floor((d%60000)/1000) };
+                    isEndingSoon = d < 15*60*1000;
+                }
+                if (!current && next) {
+                    const d = next.startMs - ms;
+                    nextTr = { h: Math.floor(d/3600000), m: Math.floor((d%3600000)/60000), s: Math.floor((d%60000)/1000) };
+                }
+
+                return { current, next, upcoming, tr, isEndingSoon, nextTr };
+            }, [now, processedRecords]);
+
+            // Notification Engine
+            const lastNotifiedRef = useRef({});
+            useEffect(() => {
+                if (!("Notification" in window) || Notification.permission !== "granted") return;
+                
+                subs.forEach(sid => {
+                    const r = processedRecords.find(rec => rec.id === sid);
+                    if (!r) return;
+                    
+                    const msUntil = r.startMs - now.getTime();
+                    const minsUntil = Math.floor(msUntil / 60000);
+                    
+                    if (minsUntil === 15 && !lastNotifiedRef.current[sid + '-15']) {
+                        lastNotifiedRef.current[sid + '-15'] = true;
+                        playBeep();
+                        new Notification("تنبيه الفلج", { body: `دورك (${r.raddahName}) سيبدأ بعد 15 دقيقة!`, icon: 'icon.svg' });
+                    }
+                    if (minsUntil === 0 && msUntil > 0 && msUntil < 2000 && !lastNotifiedRef.current[sid + '-0']) {
+                        lastNotifiedRef.current[sid + '-0'] = true;
+                        playBeep();
+                        new Notification("حان وقت السقي!", { body: `بدأ دورك الآن (${r.raddahName})، بالتوفيق.`, icon: 'icon.svg' });
+                    }
+                });
+            }, [now, subs, processedRecords]);
+
+            /* ── Load Mock Prayer Times ── */
+            useEffect(() => {
+                setPrayerTimes({
+                    Fajr: "04:30 ص", Sunrise: "05:45 ص", Dhuhr: "12:15 م", Asr: "03:30 م", Maghrib: "06:45 م", Isha: "08:00 م"
+                });
+            }, []);
+
+            /* ── Form Handlers ── */
+            const handleSave = () => {
+                if (!form.name.trim() || !form.number || !form.date || !form.time || !form.day || !form.raddahName.trim() || !form.athar) {
+                    showNotif("يرجى تعبئة جميع الحقول بما فيها 'كم أثر'", 'error'); return;
+                }
+                
+                // --- Collision Detection ---
+                const newStartDt = new Date(`${form.date}T${form.time}:00`);
+                const newStartMs = newStartDt.getTime();
+                const atharVal = parseFloat(form.athar);
+                
+                if (!atharVal || atharVal <= 0) {
+                    showNotif("يجب إدخال عدد الآثار بشكل صحيح", 'error'); return;
+                }
+                
+                const newEndMs = newStartMs + (atharVal * 30 * 60 * 1000); // 30 mins per Athar
+                
+                // Check if overlapping with any existing processed record
+                const isOverlap = processedRecords.some(r => {
+                    if (editingId === r.id) return false; // Ignore self when editing
+                    // Overlap logic: newStart < existingEnd AND newEnd > existingStart
+                    return (newStartMs < r.endMs && newEndMs > r.startMs);
+                });
+                
+                if (isOverlap) {
+                    showNotif("تنبيه للإدارة: لا يمكن الإضافة، هذا الوقت يتداخل مع سقية أخرى مسجلة مسبقاً!", 'error');
+                    return;
+                }
+                // ---------------------------
+
+                if (editingId) {
+                    setRecords(records.map(r => r.id === editingId ? { ...form, id: editingId } : r));
+                    showNotif("تم تحديث السجل بنجاح");
+                } else {
+                    setRecords(prev => [...prev, { ...form, id: Date.now() }]);
+                    showNotif("تمت إضافة السجل بنجاح");
+                }
+                setForm(EMPTY_FORM); setEditingId(null);
+            };
+            const handleEdit = (r) => { setForm({ name: r.name, number: r.number, day: r.day, date: r.date, time: r.time, period: r.period, raddahName: r.raddahName, athar: r.athar }); setEditingId(r.id); window.scrollTo({top:0,behavior:'smooth'}); };
+            const handleDelete = (id) => { setRecords(records.filter(r => r.id !== id)); setShowDeleteConfirm(null); showNotif("تم حذف السجل", 'error'); };
+
+            /* ── Views ── */
+            const renderPublic = () => {
+                const tableRows = processedRecords.filter(r => r.startMs >= (status.current?.startMs ?? now.getTime()));
+                return (
+                    <div className="animate-in">
+                        {/* Install Prompt for PWA */}
+                        {deferredPrompt && (
+                            <div style={{background: 'var(--primary-glow)', border: '1px solid var(--primary)', borderRadius: '12px', padding: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px'}}>
+                                <div>
+                                    <strong style={{display: 'block', color: 'var(--text)'}}>تثبيت التطبيق 📱</strong>
+                                    <span style={{fontSize: '13px', color: 'var(--text-muted)'}}>قم بتثبيت التطبيق على هاتفك للوصول السريع بدون متصفح.</span>
+                                </div>
+                                <button className="btn btn-primary" onClick={handleInstallClick}>تثبيت الآن</button>
+                            </div>
+                        )}
+                        
+                        {/* Big Clock */}
+                        <div className="big-clock-wrap">
+                            <div className="big-clock-time" style={{display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px'}}>
+                                <span>{now.toLocaleTimeString('ar-OM', {hour:'2-digit', minute:'2-digit', hour12:true}).replace(/[صم]/g, '').trim()}</span>
+                                <span style={{fontSize: '0.4em', color: 'var(--text-dim)'}}>{now.toLocaleTimeString('ar-OM', {hour12:true}).slice(-1)}</span>
+                            </div>
+                            <div className="big-clock-date">
+                                {DAYS[now.getDay()]}، {now.toLocaleDateString('ar-OM', {year:'numeric', month:'long', day:'numeric'})}
+                            </div>
+                        </div>
+
+                        {/* Live Cards */}
+                        <div className="status-grid" style={{marginBottom:24}}>
+                            <div className={`current-card ${status.isEndingSoon?'ending-soon':''} ${!status.current?'no-active':''}`}>
+                                <svg className="card-watermark" width="200" height="200" viewBox="0 0 24 24" fill="white" opacity="0.08" style={{position:'absolute',top:-20,left:-20}}><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+                                <div style={{position:'relative',zIndex:1}}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center', flexWrap: 'wrap', gap: '8px'}}>
+                                        <span className="badge badge-glass"><span className="pulse-dot" style={{background: status.current ? '#86efac' : '#94a3b8'}}></span> الحالة الآن</span>
+                                        {status.isEndingSoon && <span className="badge badge-danger blink"><Ic.Bell style={{width:13,height:13}}/> يوشك على الانتهاء</span>}
+                                    </div>
+                                    {status.current ? (
+                                        <>
+                                            <div style={{fontSize:13,opacity:0.8,marginTop:20}}>الآن يسقي</div>
+                                            <div className="current-name">{status.current.name}</div>
+                                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginTop:16}}>
+                                                <div className="info-chip">
+                                                    <div style={{fontSize:11,opacity:0.7,marginBottom:4}}>الردة</div>
+                                                    <div style={{fontWeight:700,fontSize:14}}>{status.current.raddahName} {status.current.athar && `(${status.current.athar} أثر)`}</div>
+                                                    <span className={`badge ${status.current.period==='نهار'?'badge-gold':'badge-indigo'}`} style={{marginTop:6,fontSize:11}}>{status.current.period}</span>
+                                                </div>
+                                                <div className="info-chip">
+                                                    <div style={{fontSize:11,opacity:0.7,marginBottom:4}}>الوقت المتبقي</div>
+                                                    <div className="countdown">{fmt(status.tr.h)}:{fmt(status.tr.m)}:<span className="secs">{fmt(status.tr.s)}</span></div>
+                                                </div>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div style={{textAlign:'center',padding:'40px 0'}}>
+                                            <Ic.Coffee style={{width:48,height:48,margin:'0 auto 12px',display:'block',opacity:0.4}}/>
+                                            <div style={{fontSize:20,fontWeight:800}}>لا يوجد أحد يسقي الآن</div>
+                                            {status.nextTr && <div style={{marginTop:8,opacity:0.75,fontSize:14}}>يبدأ القادم بعد: <strong style={{direction:'ltr', display:'inline-block'}}>{fmt(status.nextTr.h)}:{fmt(status.nextTr.m)}:{fmt(status.nextTr.s)}</strong></div>}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="next-card">
+                                <div className="next-accent"></div>
+                                <span className="badge badge-indigo" style={{marginBottom:'16px', display:'inline-flex'}}><Ic.Next style={{width:13,height:13}}/> التالي في الجدول</span>
+                                {status.next ? (
+                                    <>
+                                        <div className="next-name">{status.next.name}</div>
+                                        <div style={{color:'var(--text-muted)',fontSize:14,marginBottom:20}}>ردة: <strong style={{color:'var(--text)'}}>{status.next.raddahName} {status.next.athar && `(${status.next.athar} أثر)`}</strong></div>
+                                        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                                            <div className="info-row"><Ic.Cal style={{width:16,height:16}}/>{status.next.day}، {formatDateAr(status.next.date)}</div>
+                                            <div className="info-row"><Ic.Clock style={{width:16,height:16}}/>يبدأ الساعة <strong dir="ltr">{format12h(status.next.time)}</strong></div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="empty-state"><Ic.Cal/><p>لا توجد سجلات قادمة</p></div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="card card-glow">
+                            <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)', display:'flex', flexWrap:'wrap', gap:'12px', alignItems:'center'}}>
+                                <div className="section-title" style={{marginBottom:0}}>
+                                    <Ic.List style={{width:20,height:20}}/> الجدول الكامل
+                                </div>
+                                <span className="badge badge-primary" style={{marginRight:'auto'}}>{tableRows.length} سجل</span>
+                            </div>
+                            <div className="schedule-table-wrap">
+                                <table>
+                                    <thead><tr><th>الاسم</th><th>الردة</th><th>الأثر</th><th>اليوم والتاريخ</th><th>وقت البدء</th><th>الفترة</th></tr></thead>
+                                    <tbody>
+                                        {tableRows.length === 0 && <tr><td colSpan="6"><div className="empty-state"><p>الجدول فارغ</p></div></td></tr>}
+                                        {tableRows.map((r) => {
+                                            const isCur = status.current?.id === r.id;
+                                            const isNxt = status.next?.id === r.id;
+                                            return (
+                                                <tr key={r.id} className={isCur?'row-active':isNxt?'row-next':''}>
+                                                    <td><span className="person-name">{r.name}</span> {isCur && <span className="badge badge-success row-label">الآن</span>}</td>
+                                                    <td>{r.raddahName}</td>
+                                                    <td>{r.athar ? <span className="badge badge-glass" style={{color:'var(--text)', background:'var(--surface-2)'}}>{r.athar}</span> : '-'}</td>
+                                                    <td>{r.day}، {formatDateAr(r.date)}</td>
+                                                    <td><span style={{fontFamily:'JetBrains Mono',fontWeight:700,color:'var(--text)'}} dir="ltr">{format12h(r.time)}</span></td>
+                                                    <td><span className={`badge ${r.period==='نهار'?'period-day':'period-night'}`}>{r.period}</span></td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            const renderMySchedule = () => {
+                const q = searchQuery.trim().toLowerCase();
+                const myRecords = q ? processedRecords.filter(r => r.name.toLowerCase().includes(q) || String(r.number).includes(q)) : [];
+                return (
+                    <div className="animate-in" style={{maxWidth:720,margin:'0 auto'}}>
+                        <div style={{textAlign:'center',marginBottom:32}}>
+                            <div style={{width:64,height:64,background:'rgba(14,165,233,0.1)',borderRadius:16,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px',color:'var(--primary)'}}><Ic.User style={{width:28,height:28}}/></div>
+                            <h1 style={{fontSize:28,fontWeight:900,color:'var(--text)',marginBottom:4}}>جدول سقيتي</h1>
+                            <p style={{color:'var(--text-muted)',fontSize:14}}>ابحث باسمك أو رقمك التعريفي لرؤية مواعيدك</p>
+                        </div>
+
+                        <div className="search-wrap">
+                            <div className="search-icon"><Ic.Search style={{width:18,height:18}}/></div>
+                            <input className="search-input" type="text" placeholder="اكتب اسمك أو رقمك التعريفي..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}/>
+                        </div>
+
+                        {!q && <div className="empty-state"><Ic.Search/><p>أدخل اسمك أو رقمك للبحث</p></div>}
+                        {q && myRecords.length === 0 && <div className="empty-state"><Ic.X/><p>لم يتم العثور على سجلات بـ "{q}"</p></div>}
+
+                        {myRecords.map(r => {
+                            const isCur = status.current?.id === r.id;
+                            const isSub = subs.includes(r.id);
+                            return (
+                                <div key={r.id} className={`schedule-item ${isCur?'is-current':''}`}>
+                                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}}>
+                                        <div style={{flex:1}}>
+                                            <div style={{fontSize:17,fontWeight:800,marginBottom:8}}>{r.raddahName} {r.athar && <span style={{fontSize:12,color:'var(--text-dim)'}}>({r.athar} أثر)</span>} {isCur && <span className="badge badge-success blink">دورك الآن!</span>}</div>
+                                            <div style={{display:'flex',gap:12,fontSize:14,color:'var(--text-muted)', flexWrap:'wrap'}}>
+                                                <span><Ic.Cal style={{width:14,height:14,verticalAlign:'-2px',marginRight:4,color:'var(--primary)'}}/>{r.day}، {formatDateAr(r.date)}</span>
+                                                <span dir="ltr"><Ic.Clock style={{width:14,height:14,verticalAlign:'-2px',marginRight:4,color:'var(--primary)'}}/>{format12h(r.time)} ({r.period})</span>
+                                            </div>
+                                        </div>
+                                        <button 
+                                            className={`btn ${isSub ? 'btn-success' : 'btn-ghost'}`} 
+                                            onClick={() => toggleSubscription(r.id)}
+                                            style={{padding:'8px 12px'}}
+                                        >
+                                            {isSub ? <Ic.Bell style={{width:16,height:16}}/> : <Ic.BellOff style={{width:16,height:16}}/>}
+                                            {isSub ? 'مفعل' : 'تنبيهي'}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                );
+            };
+
+            const renderTools = () => {
+                const handleSwapSend = () => {
+                    if (!swapForm.me || !swapForm.other) { showNotif("الرجاء كتابة الأسماء للتبديل", 'error'); return; }
+                    const text = encodeURIComponent(`السلام عليكم وكيل الفلج،\nأنا (${swapForm.me}) أرغب بمبادلة سقية الفلج الخاصة بي مع (${swapForm.other}).\nالسبب: ${swapForm.reason||'بدون سبب محدد'}\nنرجو اعتماد التبديل وشكراً.`);
+                    window.open(`https://wa.me/${WHATSAPP_NUM.replace('+','')}?text=${text}`, '_blank');
+                };
+
+                return (
+                    <div className="animate-in" style={{maxWidth:800,margin:'0 auto'}}>
+                        <div className="section-title"><Ic.Wrench/> أدوات الفلج المساعدة</div>
+                        
+                        <div className="tool-card">
+                            <h3 style={{fontSize:18,fontWeight:800,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ic.Send style={{width:18,height:18,color:'var(--primary)'}}/> طلب مبادلة ردة</h3>
+                            <p style={{color:'var(--text-muted)',fontSize:14,marginBottom:20}}>استخدم هذا النموذج لإنشاء رسالة واتساب جاهزة ترسلها لوكيل الفلج لطلب تبديل دورك مع شخص آخر.</p>
+                            <div className="form-grid">
+                                <div className="form-group"><label className="form-label">اسمي (صاحب الدور الأصلي)</label><input className="form-input" value={swapForm.me} onChange={e=>setSwapForm({...swapForm,me:e.target.value})} placeholder="الاسم" /></div>
+                                <div className="form-group"><label className="form-label">اسم الشخص البديل</label><input className="form-input" value={swapForm.other} onChange={e=>setSwapForm({...swapForm,other:e.target.value})} placeholder="الاسم" /></div>
+                            </div>
+                            <div className="form-group" style={{marginTop:16}}><label className="form-label">ملاحظات / سبب التبديل (اختياري)</label><input className="form-input" value={swapForm.reason} onChange={e=>setSwapForm({...swapForm,reason:e.target.value})} placeholder="ملاحظة للوكيل..." /></div>
+                            <button className="btn btn-primary" style={{marginTop:20,width:'100%',background:'var(--whatsapp)'}} onClick={handleSwapSend}><svg viewBox="0 0 24 24" style={{width:18,height:18,fill:'white'}}><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> أرسل للوكيل</button>
+                        </div>
+
+                        <div className="tool-card">
+                            <h3 style={{fontSize:18,fontWeight:800,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ic.Book style={{width:18,height:18,color:'var(--success)'}}/> دليل مصطلحات الفلج</h3>
+                            <p style={{color:'var(--text-muted)',fontSize:14,marginBottom:16}}>تعرف على أهم المصطلحات التقليدية المستخدمة في نظام سقي الأفلاج:</p>
+                            <div className="dict-item">
+                                <div className="dict-term">الأثر</div>
+                                <div className="dict-desc">هو وحدة قياس الوقت التقليدية في الأفلاج العمانية، وكل (أثر) يعادل بالضبط 30 دقيقة. (نصف ساعة).</div>
+                            </div>
+                            <div className="dict-item">
+                                <div className="dict-term">الردّة / البادة</div>
+                                <div className="dict-desc">هي الحصة الكاملة المخصصة للشخص أو للمزرعة من ماء الفلج خلال الدورة (النهار أو الليل).</div>
+                            </div>
+                            <div className="dict-item">
+                                <div className="dict-term">وكيل الفلج</div>
+                                <div className="dict-desc">هو المسؤول الأول عن إدارة شؤون الفلج وتوزيع حصص المياه وحل النزاعات والإشراف على أعمال الصيانة.</div>
+                            </div>
+                            <div className="dict-item">
+                                <div className="dict-term">القعّادة</div>
+                                <div className="dict-desc">هي الفترة الزمنية أو اليوم المخصص للبيع أو تأجير حصص الماء للمساهمة في صيانة الفلج وإصلاحه.</div>
+                            </div>
+                        </div>
+
+                        <div className="tool-card">
+                            <h3 style={{fontSize:18,fontWeight:800,marginBottom:16,display:'flex',alignItems:'center',gap:8}}><Ic.Sun style={{width:18,height:18,color:'var(--warning)'}}/> مواقيت مرتبطة بالشمس</h3>
+                            <p style={{color:'var(--text-muted)',fontSize:14}}>يُعتمد على الشروق والغروب ومواقيت الصلاة في تحديد وتوزيع حصص الماء التقليدية.</p>
+                            {prayerTimes && (
+                                <div className="prayer-grid">
+                                    <div className="prayer-item"><div className="prayer-name">الفجر</div><div className="prayer-time">{prayerTimes.Fajr}</div></div>
+                                    <div className="prayer-item"><div className="prayer-name">الشروق</div><div className="prayer-time">{prayerTimes.Sunrise}</div></div>
+                                    <div className="prayer-item"><div className="prayer-name">الظهر</div><div className="prayer-time">{prayerTimes.Dhuhr}</div></div>
+                                    <div className="prayer-item"><div className="prayer-name">العصر</div><div className="prayer-time">{prayerTimes.Asr}</div></div>
+                                    <div className="prayer-item"><div className="prayer-name">المغرب</div><div className="prayer-time">{prayerTimes.Maghrib}</div></div>
+                                    <div className="prayer-item"><div className="prayer-name">العشاء</div><div className="prayer-time">{prayerTimes.Isha}</div></div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            }
+
+            const renderAdmin = () => {
+                if (!isAdminAuth) return (
+                    <div className="auth-card animate-in">
+                        <div style={{width:72,height:72,background:'rgba(239,68,68,0.1)',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',color:'#f87171'}}><Ic.Lock style={{width:32,height:32}}/></div>
+                        <h2 style={{fontSize:22,fontWeight:800,marginBottom:8}}>تسجيل دخول الإدارة</h2>
+                        <input className="form-input" type="password" placeholder="كلمة المرور" value={adminPass} onChange={e=>setAdminPass(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&adminPass===ADMIN_PASSWORD) setIsAdminAuth(true);}} style={{textAlign:'center',marginBottom:12}}/>
+                        <button className="btn btn-primary" style={{width:'100%'}} onClick={()=>{if(adminPass===ADMIN_PASSWORD) setIsAdminAuth(true); else showNotif('كلمة المرور خاطئة','error');}}><Ic.Shield/> دخول</button>
+                    </div>
+                );
+
+                const allRows = [...processedRecords].reverse();
+                return (
+                    <div className="animate-in" style={{maxWidth:960,margin:'0 auto'}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24, flexWrap:'wrap', gap:'12px'}}>
+                            <h1 style={{fontSize:24,fontWeight:900}}>لوحة التحكم</h1>
+                            <button className="btn btn-danger" onClick={()=>{setIsAdminAuth(false);setView('public');}}><Ic.Logout/> خروج</button>
+                        </div>
+
+                        <div className="card" style={{padding: 'clamp(16px, 4vw, 24px)', marginBottom:24}}>
+                            <div className="section-title">{editingId ? <><Ic.Edit/> تعديل السجل</> : <><Ic.Plus/> إضافة ردة جديدة</>}</div>
+                            <div className="form-grid">
+                                <div className="form-group"><label className="form-label">الاسم</label><input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></div>
+                                <div className="form-group"><label className="form-label">الردة</label><input className="form-input" placeholder="اسم الردة" value={form.raddahName} onChange={e=>setForm({...form,raddahName:e.target.value})}/></div>
+                                <div className="form-group"><label className="form-label">الرقم</label><input className="form-input" type="number" value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></div>
+                                <div className="form-group"><label className="form-label">كم أثر؟ (الأثر = 30 دقيقة)</label><input className="form-input" type="number" step="0.5" placeholder="مثال: 2 (لتعني ساعة واحدة)" value={form.athar} onChange={e=>setForm({...form,athar:e.target.value})}/></div>
+                                <div className="form-group"><label className="form-label">اليوم</label><select className="form-select" value={form.day} onChange={e=>setForm({...form,day:e.target.value})}><option value="" disabled>اختر</option>{DAYS.map(d=><option key={d}>{d}</option>)}</select></div>
+                                <div className="form-group"><label className="form-label">التاريخ</label><input className="form-input" type="date" value={form.date} onChange={e=>setForm({...form,date:e.target.value})}/></div>
+                                <div className="form-group">
+                                    <label className="form-label">الوقت والفترة</label>
+                                    <div style={{display:'flex',gap:8}}>
+                                        <input className="form-input" type="time" value={form.time} onChange={e=>setForm({...form,time:e.target.value})} style={{flex:2}}/>
+                                        <select className="form-select" value={form.period} onChange={e=>setForm({...form,period:e.target.value})} style={{flex:1}}><option>نهار</option><option>ليل</option></select>
+                                    </div>
+                                </div>
+                            </div>
+                            <hr className="divider"/>
+                            <div style={{display:'flex',gap:10, flexWrap:'wrap'}}>
+                                <button className="btn btn-primary" style={{flex:1}} onClick={handleSave}>{editingId?'حفظ التعديل':'إضافة'}</button>
+                                {editingId && <button className="btn btn-ghost" style={{flex:1}} onClick={()=>{setForm(EMPTY_FORM);setEditingId(null);}}>إلغاء</button>}
+                            </div>
+                        </div>
+
+                        <div className="card card-glow">
+                            <div className="schedule-table-wrap">
+                                <table>
+                                    <thead><tr><th>الاسم</th><th>الردة</th><th>الأثر</th><th>التاريخ والوقت</th><th>إجراءات</th></tr></thead>
+                                    <tbody>
+                                        {allRows.map(r=>(
+                                            <tr key={r.id}>
+                                                <td>{r.name}</td><td>{r.raddahName}</td>
+                                                <td>{r.athar ? <span className="badge badge-glass" style={{color:'var(--text)', background:'var(--surface-2)'}}>{r.athar}</span> : '-'}</td>
+                                                <td dir="ltr" style={{fontFamily:'JetBrains Mono'}}>{format12h(r.time)} <span style={{fontSize:12,color:'var(--text-dim)'}}>{formatDateAr(r.date)}</span></td>
+                                                <td>
+                                                    <div style={{display:'flex',gap:6,justifyContent:'flex-end'}}>
+                                                        <button className="btn btn-ghost btn-icon btn-sm" onClick={()=>handleEdit(r)}><Ic.Edit style={{width:14,height:14}}/></button>
+                                                        <button className="btn btn-danger btn-icon btn-sm" onClick={()=>setShowDeleteConfirm(r.id)}><Ic.Trash style={{width:14,height:14}}/></button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {showDeleteConfirm && (
+                            <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:16}} onClick={()=>setShowDeleteConfirm(null)}>
+                                <div style={{background:'var(--bg-2)',border:'1px solid var(--border)',borderRadius:20,padding:32,maxWidth:360,width:'100%',textAlign:'center'}} onClick={e=>e.stopPropagation()}>
+                                    <h3 style={{fontSize:18,fontWeight:800,marginBottom:16}}>تأكيد الحذف</h3>
+                                    <div style={{display:'flex',gap:10}}>
+                                        <button className="btn btn-danger" style={{flex:1}} onClick={()=>handleDelete(showDeleteConfirm)}>حذف</button>
+                                        <button className="btn btn-ghost" style={{flex:1}} onClick={()=>setShowDeleteConfirm(null)}>إلغاء</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const navItems = [
+                { id:'public', label:'الجدول', icon: <Ic.Layout/> },
+                { id:'mine', label:'جدولي', icon: <Ic.User/> },
+                { id:'tools', label:'أدوات الفلج', icon: <Ic.Wrench/> },
+                { id:'admin', label:'الإدارة', icon: <Ic.Shield/> }
+            ];
+
+            return (
+                <div className="app-bg">
+                    {notification && (
+                        <div style={{position:'fixed',top:20,left:'50%',transform:'translateX(-50%)',background: notification.type==='error'?'rgba(220,38,38,0.95)':'rgba(34,197,94,0.95)',color:'white',padding:'12px 24px',borderRadius:12,fontWeight:700,zIndex:9999,boxShadow:'0 8px 24px rgba(0,0,0,0.3)',animation:'fadeIn 0.3s ease'}}>
+                            {notification.msg}
+                        </div>
+                    )}
+
+                    <header className="header">
+                        <div className="header-inner">
+                            <a className="logo" href="#" onClick={e=>{e.preventDefault();setView('public');}}>
+                                <div className="logo-icon"><Ic.Drop style={{width:22,height:22,color:'white'}}/></div>
+                                <div><div className="logo-text">فلج</div><div className="logo-sub">إدارة السقي الذكية</div></div>
+                            </a>
+                            <nav className="nav">
+                                {navItems.map(n => (
+                                    <button key={n.id} className={`nav-btn ${view===n.id?'active':''}`} onClick={()=>{setView(n.id);setSearchQuery("");}}>
+                                        {n.icon}<span>{n.label}</span>
+                                    </button>
+                                ))}
+                            </nav>
+                        </div>
+                    </header>
+
+                    <main className="main">
+                        {view === 'public' && renderPublic()}
+                        {view === 'mine'   && renderMySchedule()}
+                        {view === 'tools'  && renderTools()}
+                        {view === 'admin'  && renderAdmin()}
+                    </main>
+
+                    {/* Floating WhatsApp Button */}
+                    <a href={`https://wa.me/${WHATSAPP_NUM.replace('+', '')}`} className="floating-whatsapp" target="_blank" rel="noopener noreferrer" title="تواصل مع وكيل الفلج">
+                        <svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                    </a>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+    </script>
+</body>
+</html>
