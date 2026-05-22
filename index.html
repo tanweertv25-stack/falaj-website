@@ -481,9 +481,8 @@ function App() {
         }
     };
     const shareRaddah = r => {
-        const atharStr = r.athar ? " (" + r.athar + " أثر)" : "";
-        const txt = "تذكير دور سقي الفلج 💧\nالاسم: " + r.name + "\nالردة: " + r.raddahName + atharStr + "\nالتاريخ: " + r.day + "، " + fmtDate(r.date) + "\nالوقت: " + fmtTime12(r.time) + " (" + r.period + ")\n📍 توقيت ولاية منح، عُمان";
-        window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
+        const txt = `تذكير دور سقي الفلج 💧\nالاسم: ${r.name}\nالردة: ${r.raddahName} ${r.athar?`(${r.athar} أثر)`:''}\nالتاريخ: ${r.day}، ${fmtDate(r.date)}\nالوقت: ${fmtTime12(r.time)} (${r.period})\n📍 توقيت ولاية منح، عُمان`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
     };
 
     /* ── Views ── */
@@ -493,12 +492,13 @@ function App() {
         return <div className="animate-in">
             {/* Clock */}
             <div className="big-clock">
-                <div className="clock-time">
-                    <span className="clock-ampm">{clockAP}</span>
-                    {clockHM}
-                    <span style={{fontSize:'0.35em',color:'var(--text-dim)',marginRight:6,direction:'ltr'}}>:{clockSec}</span>
+                <div style={{fontSize:13,color:'var(--primary)',marginBottom:10,fontWeight:'bold',letterSpacing:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    توقيت سلطنة عُمان - ولاية منح
                 </div>
-                <div className="clock-date">{clockDate}</div>
+                <div className="clock-time" dir="ltr">{now.toLocaleTimeString('ar-OM',{timeZone:'Asia/Muscat',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true})}</div>
+                <div className="clock-date">{now.toLocaleDateString('ar-OM',{timeZone:'Asia/Muscat',weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+                <div className="clock-date" style={{fontSize:14,color:'var(--text-dim)',marginTop:6}}>{new Intl.DateTimeFormat('ar-SA-u-ca-islamic',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Muscat'}).format(now)} هـ</div>
             </div>
 
             {/* Stats */}
