@@ -196,21 +196,18 @@
 
         @media (max-width:480px) {
             .nav { padding:14px; flex-direction:column; gap:10px; }
-            .tab-buttons { flex-wrap:wrap; }
         }
 
-        /* Print Styles */
         @media print {
-            body { background: #fff; color: #000; }
-            .nav, .tab-buttons, .chat-widget, button { display: none !important; }
-            .card { box-shadow: none !important; border: 1px solid #000 !important; page-break-inside: avoid; background: #fff !important; }
-            .card-glow::before { display: none !important; }
-            table { border-collapse: collapse; width: 100%; color: #000; }
-            th, td { border: 1px solid #000; padding: 8px; color: #000 !important; }
-            .badge, .rlabel { border: 1px solid #000; color: #000 !important; background: transparent !important; box-shadow: none !important; }
-            .big-clock { background: none; border: none; color: #000; box-shadow: none; }
-            .time { color: #000 !important; text-shadow: none !important; }
-            * { color: #000 !important; text-shadow: none !important; }
+            body { background: white !important; color: black !important; }
+            .header, .nav, .hide-print, .stats-row, .status-grid, .btn { display: none !important; }
+            .main { padding: 0 !important; max-width: 100% !important; }
+            .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+            table { width: 100% !important; border-collapse: collapse; }
+            th, td { border: 1px solid #aaa !important; padding: 8px !important; color: black !important; background: white !important; }
+            .badge { border: 1px solid #aaa !important; background: transparent !important; color: black !important; }
+            .print-only { display: block !important; }
+            .sitem { border: 1px solid #aaa !important; margin-bottom: 10px !important; page-break-inside: avoid; }
         }
 
         @media(max-width:480px) {
@@ -266,7 +263,7 @@ const WA_NUM = "+96896017822";
 const ATHAR_MINS = 30; // كل أثر = 30 دقيقة
 
 const EF = { name:"", number:"", day:"", date:"", time:"", period:"نهار", raddahName:"", athar:"" };
-const ER = { name:"", number:"", raddahName:"", athar:"", startDate:"", recType:"days", recValue:"10", occurrences:"8", cycle:[{time:"", period:"نهار"}] };
+const ER = { name:"", number:"", raddahName:"", athar:"", startDate:"", recType:"interval", recValue:"10", selectedDays:[], sequenceDays:[], cycleWeeks:4, weekPatterns:[[],[],[],[]], cycle:[{time:"", period:"نهار"}] };
 
 const fmt = n => String(n).padStart(2,'0');
 const fmtDate = s => { try { const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; } catch(e){return s;} };
@@ -292,7 +289,7 @@ function App() {
     const [form, setForm] = useState(EF);
     const [recurForm, setRecurForm] = useState(ER);
     const [now, setNow] = useState(new Date());
-    const [searchQ, setSearchQ] = useState("");
+    const [searchQ, setSearchQ] = useState(() => { try { return localStorage.getItem("falaj_my_profile")||""; } catch(e){return "";} });
     const [editId, setEditId] = useState(null);
     const [adminPass, setAdminPass] = useState("");
     const [isAdmin, setIsAdmin] = useState(false);
@@ -310,6 +307,7 @@ function App() {
     useEffect(() => { try{localStorage.setItem("falaj-v5",JSON.stringify(records));}catch(e){} }, [records]);
     useEffect(() => { try{localStorage.setItem("falaj-patterns",JSON.stringify(patterns));}catch(e){} }, [patterns]);
     useEffect(() => { try{localStorage.setItem("falaj-subs",JSON.stringify(subs));}catch(e){} }, [subs]);
+    useEffect(() => { try{localStorage.setItem("falaj_my_profile", searchQ);}catch(e){} }, [searchQ]);
 
     // PWA install prompt
     useEffect(() => {
@@ -415,10 +413,10 @@ function App() {
         }
         setConflictMsg("");
         if (editId) {
-            setRecords(records.map(r=>r.id===editId?{...form,id:editId}:r));
+            setRecords(records.map(r=>r.id===editId?{...form,id:editId,sysLabel:r.sysLabel||'إضافة يدوية'}:r));
             showToast("تم تحديث السجل");
         } else {
-            setRecords(p=>[...p,{...form,id:Date.now()}]);
+            setRecords(p=>[...p,{...form,id:Date.now(),sysLabel:'إضافة يدوية'}]);
             showToast("تمت الإضافة بنجاح");
         }
         setForm(EF); setEditId(null);
@@ -426,27 +424,74 @@ function App() {
 
     /* ── Generate Recurring Records ── */
     const handleGenerate = () => {
-        const {name,number,raddahName,athar,startDate,recType,recValue,cycle} = recurForm;
+        const {name,number,raddahName,athar,startDate,recType,recValue,selectedDays,sequenceDays,cycleWeeks,weekPatterns,cycle} = recurForm;
         if (!name.trim()||!number||!raddahName.trim()||!startDate||!cycle||cycle.length===0||cycle.some(c=>!c.time)) {
             showToast("يرجى تعبئة جميع حقول الجدولة وأوقات الدوران","err"); return;
         }
         const count = 100; // إنشاء مستمر لـ 100 تكرار في المستقبل
         const dates = [];
         let cur = new Date(startDate);
+        cur.setHours(0,0,0,0);
+        
         // Generate dates
-        for (let i=0; i<count; i++) {
-            if (i===0) { dates.push(new Date(cur)); }
-            else {
-                if (recType==='days') {
-                    cur = new Date(cur.getTime()+parseInt(recValue)*24*3600*1000);
+        if (recType === 'interval' || recType === 'days' || recType === 'weekday') {
+            const intervalDays = recType === 'weekday' ? 7 : (parseInt(recValue) || 10);
+            for (let i=0; i<count; i++) {
+                dates.push(new Date(cur));
+                cur.setDate(cur.getDate() + intervalDays);
+            }
+        } else if (recType === 'weekly') {
+            if (!selectedDays || selectedDays.length === 0) { showToast("اختر يوماً واحداً على الأقل", "err"); return; }
+            let addedCount = 0;
+            while (addedCount < count) {
+                if (selectedDays.includes(cur.getDay())) {
                     dates.push(new Date(cur));
-                } else if (recType==='weekday') {
-                    cur = new Date(cur.getTime()+24*3600*1000);
-                    while(cur.getDay()!==parseInt(recValue)) cur=new Date(cur.getTime()+24*3600*1000);
+                    addedCount++;
+                }
+                cur.setDate(cur.getDate() + 1);
+            }
+        } else if (recType === 'biweekly') {
+            for (let i=0; i<count; i++) {
+                dates.push(new Date(cur));
+                cur.setDate(cur.getDate() + 14);
+            }
+        } else if (recType === 'rotating') {
+            if (!sequenceDays || sequenceDays.length === 0) { showToast("اختر يوماً واحداً على الأقل للتسلسل", "err"); return; }
+            for (let i=0; i<count; i++) {
+                if (i === 0) {
+                    dates.push(new Date(cur));
+                } else {
+                    const targetDay = parseInt(sequenceDays[i % sequenceDays.length]);
+                    cur.setDate(cur.getDate() + 1);
+                    while(cur.getDay() !== targetDay) {
+                        cur.setDate(cur.getDate() + 1);
+                    }
                     dates.push(new Date(cur));
                 }
             }
+        } else if (recType === 'multi_week') {
+            const numWeeks = parseInt(cycleWeeks) || 1;
+            let addedCount = 0;
+            const startMs = cur.getTime();
+            while (addedCount < count) {
+                const daysDiff = Math.floor((cur.getTime() - startMs) / (1000 * 3600 * 24));
+                const weekIndex = Math.floor(daysDiff / 7) % numWeeks;
+                const currentPattern = (weekPatterns||[])[weekIndex] || [];
+                if (currentPattern.includes(cur.getDay())) {
+                    dates.push(new Date(cur));
+                    addedCount++;
+                }
+                cur.setDate(cur.getDate() + 1);
+            }
         }
+        let patternLabel = `${raddahName} - `;
+        if (recType === 'interval' || recType === 'days') patternLabel += `كل ${recValue} يوم`;
+        else if (recType === 'weekly') patternLabel += `أسبوعي (${(selectedDays||[]).map(d=>DAYS[d]).join(' و ')})`;
+        else if (recType === 'biweekly') patternLabel += `كل أسبوعين`;
+        else if (recType === 'rotating') patternLabel += `متناوب (${(sequenceDays||[]).map(d=>DAYS[d]).join(' -> ')})`;
+        else if (recType === 'multi_week') patternLabel += `دورة أسابيع (${cycleWeeks} أسبوع)`;
+        else patternLabel += `مخصص`;
+
         let added=0, skipped=0;
         const newRecords=[];
         dates.forEach((dt, i) => {
@@ -455,12 +500,13 @@ function App() {
             const cycleItem = cycle[i % cycle.length];
             const {time, period} = cycleItem;
             if (hasConflict(dateStr,time,athar,null)) { skipped++; return; }
-            newRecords.push({id:Date.now()+added,name,number,raddahName,athar,period,time,date:dateStr,day:dayStr});
+            newRecords.push({id:Date.now()+added,name,number,raddahName,athar,period,time,date:dateStr,day:dayStr,sysLabel:patternLabel});
             added++;
         });
         if (newRecords.length>0) setRecords(p=>[...p,...newRecords]);
+        
         // Save pattern
-        setPatterns(p=>[...p,{id:Date.now(),label:`${raddahName} - كل ${recType==='days'?recValue+' يوم':DAYS[parseInt(recValue)]}`,data:recurForm}]);
+        setPatterns(p=>[...p,{id:Date.now(),label:patternLabel,data:recurForm}]);
         showToast(`✅ أُضيف ${added} سجل${skipped>0?' | ⚠️ تجاوز '+skipped+' تعارض':''}`);
         setRecurForm(ER);
     };
@@ -588,9 +634,26 @@ function App() {
 
     const renderMine = () => {
         const q=searchQ.trim().toLowerCase();
-        const mine=q?processed.filter(r=>r.name.toLowerCase().includes(q)||String(r.number).includes(q)):[];
+        const isNum = /^\d+$/.test(q);
+        const yesterdayMs = now.getTime() - 24*3600*1000;
+        let mine = q ? processed.filter(r => {
+            if (isNum) return String(r.number) === q;
+            return r.name.toLowerCase().includes(q) || r.raddahName.toLowerCase().includes(q);
+        }) : [];
+        mine = mine.filter(r => r.endMs > yesterdayMs);
+        
+        const handleDownloadCSV = () => {
+            let csv = "الاسم,الرقم,الردة,الأثر,اليوم,التاريخ,الوقت,الفترة,النظام\n";
+            mine.forEach(r => { csv += `${r.name},${r.number},${r.raddahName},${r.athar},${r.day},${r.date},${fmtTime12(r.time)},${r.period},${r.sysLabel||'غير محدد'}\n`; });
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `my_schedule_${fmtDate(new Date().toISOString().split('T')[0]).replace(/\//g,'-')}.csv`;
+            link.click();
+        };
+
         return <div className="animate-in" style={{maxWidth:700,margin:'0 auto'}}>
-            <div style={{textAlign:'center',marginBottom:28}}>
+            <div style={{textAlign:'center',marginBottom:28}} className="hide-print">
                 <div style={{width:60,height:60,background:'rgba(14,165,233,0.1)',borderRadius:14,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',color:'var(--primary)'}}><I.User style={{width:26,height:26}}/></div>
                 <h1 style={{fontSize:26,fontWeight:900,marginBottom:4}}>جدول سقيتي</h1>
                 <p style={{color:'var(--text-muted)',fontSize:13}}>ابحث باسمك أو رقمك لرؤية مواعيدك والاشتراك في التنبيهات</p>
@@ -599,17 +662,30 @@ function App() {
                 <div className="search-ic"><I.Search style={{width:16,height:16}}/></div>
                 <input className="search-inp" type="text" placeholder="اكتب اسمك أو رقمك..." value={searchQ} onChange={e=>setSearchQ(e.target.value)}/>
             </div>
-            {!q&&<div className="empty"><I.Search/><p>أدخل اسمك للبحث</p></div>}
-            {q&&!mine.length&&<div className="empty"><I.X/><p>لا نتائج لـ "{q}"</p></div>}
+            {!q&&<div className="empty hide-print"><I.Search/><p>أدخل اسمك للبحث</p></div>}
+            {q&&!mine.length&&<div className="empty hide-print"><I.X/><p>لا نتائج لـ "{q}"</p></div>}
+            
+            {mine.length>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:10}} className="hide-print">
+                <div style={{fontSize:14,fontWeight:'bold',color:'var(--primary)'}}>تم العثور على {mine.length} موعد قادم</div>
+                <div style={{display:'flex',gap:8}}>
+                    <button className="btn bd bsm" onClick={handleDownloadCSV}><I.List style={{width:14,height:14}}/> تنزيل ملف</button>
+                    <button className="btn bp bsm" onClick={()=>window.print()}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> طباعة الجداول</button>
+                </div>
+            </div>}
+            
+            <div className="print-only" style={{display:'none',textAlign:'center',marginBottom:20,fontSize:20,fontWeight:'bold'}}>جدول سقي الفلج (خاص بـ: {searchQ})</div>
+            
             {mine.map(r=>{
                 const isCur=status.current?.id===r.id, isSub=subs.includes(r.id);
                 return <div key={r.id} className={`sitem ${isCur?'sc':''}`}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
                         <div style={{flex:1}}>
-                            <div style={{fontSize:16,fontWeight:800,marginBottom:6}}>{r.raddahName} {r.athar&&<span style={{fontSize:11,color:'var(--text-dim)'}}>({r.athar} أثر = {parseFloat(r.athar)*ATHAR_MINS} دق)</span>} {isCur&&<span className="badge b-success blink">دورك الآن!</span>}</div>
-                            <div style={{fontSize:13,color:'var(--text-muted)'}}><I.Cal style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> {r.day}، {fmtDate(r.date)} &nbsp; <I.Clock style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> <span dir="ltr">{fmtTime12(r.time)}</span> ({r.period})</div>
+                            <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{r.name} {isCur&&<span className="badge b-success blink hide-print">دورك الآن!</span>}</div>
+                            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:6}}>الرقم: {r.number} | الردة: <strong style={{color:'var(--text)'}}>{r.raddahName}</strong> {r.athar&&<span style={{fontSize:11}}>({r.athar} أثر)</span>}</div>
+                            <div style={{fontSize:12,color:'var(--primary)',background:'var(--surface-2)',padding:'4px 8px',borderRadius:6,display:'inline-block',marginBottom:8}}>النظام المتبع: {r.sysLabel || 'إضافة يدوية'}</div>
+                            <div style={{fontSize:13,color:'var(--text)'}}><I.Cal style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> {r.day}، {fmtDate(r.date)} &nbsp; <I.Clock style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> <span dir="ltr">{fmtTime12(r.time)}</span> ({r.period})</div>
                         </div>
-                        <div style={{display:'flex',gap:6}}>
+                        <div style={{display:'flex',gap:6}} className="hide-print">
                             <button className={`btn bsm ${isSub?'bs':'bg'}`} onClick={()=>toggleSub(r.id)}>
                                 {isSub?<I.Bell style={{width:14,height:14}}/>:<I.BellOff style={{width:14,height:14}}/>}
                                 {isSub?'مفعّل':'تنبيهي'}
@@ -754,19 +830,6 @@ function App() {
                 <div className="sttl"><I.Repeat/> جدولة دوران الردة تلقائياً</div>
                 <p style={{color:'var(--text-muted)',fontSize:13,marginBottom:18}}>أضف نمط تكرار وسيقوم النظام بإنشاء جميع السجلات تلقائياً مع التحقق من عدم وجود تعارضات.</p>
                 
-                {/* Pattern presets */}
-                <div style={{marginBottom:16}}>
-                    <div className="fl" style={{marginBottom:8}}>نوع الدوران</div>
-                    <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                        {[['كل 7 أيام','days','7'],['كل 10 أيام','days','10'],['كل 15 يوم','days','15'],['كل 20 يوم','days','20'],['كل 30 يوم','days','30']].map(([l,t,v])=>(
-                            <button key={l} className={`btn bsm ${recurForm.recType===t&&recurForm.recValue===v?'bp':'bg'}`} onClick={()=>setRecurForm({...recurForm,recType:t,recValue:v})}>{l}</button>
-                        ))}
-                        {DAYS.map((d,i)=>(
-                            <button key={d} className={`btn bsm ${recurForm.recType==='weekday'&&recurForm.recValue===String(i)?'bp':'bg'}`} onClick={()=>setRecurForm({...recurForm,recType:'weekday',recValue:String(i)})}>كل {d}</button>
-                        ))}
-                    </div>
-                </div>
-
                 <div className="fgrid" style={{marginBottom:12}}>
                     <div className="fg"><label className="fl">الاسم</label><input className="fi" value={recurForm.name} onChange={e=>setRecurForm({...recurForm,name:e.target.value})}/></div>
                     <div className="fg"><label className="fl">اسم الردة</label><input className="fi" value={recurForm.raddahName} onChange={e=>setRecurForm({...recurForm,raddahName:e.target.value})}/></div>
@@ -775,7 +838,103 @@ function App() {
                         <label className="fl">عدد الآثار <span style={{color:'var(--text-dim)',fontWeight:400}}>(= {(parseFloat(recurForm.athar)||0)*ATHAR_MINS} دق)</span></label>
                         <input className="fi" type="number" step="0.5" value={recurForm.athar} onChange={e=>setRecurForm({...recurForm,athar:e.target.value})}/>
                     </div>
-                    <div className="fg"><label className="fl">تاريخ البداية</label><input className="fi" type="date" value={recurForm.startDate} onChange={e=>setRecurForm({...recurForm,startDate:e.target.value})}/></div>
+                    
+                    <div className="fg">
+                        <label className="fl">نوع التكرار</label>
+                        <select className="fsel" value={recurForm.recType} onChange={e=>{
+                            let rt = e.target.value;
+                            setRecurForm({...recurForm, recType: rt});
+                        }}>
+                            <option value="interval">فاصل زمني (كل X أيام)</option>
+                            <option value="weekly">أسبوعي (أيام محددة بالتكرار)</option>
+                            <option value="biweekly">نصف شهري (كل أسبوعين - 14 يوم)</option>
+                            <option value="rotating">أيام متناوبة (تناوب بين الأيام)</option>
+                            <option value="multi_week">دورة أسابيع مخصصة (متقدم)</option>
+                        </select>
+                    </div>
+                    
+                    {/* Dynamic Fields based on Recurrence Type */}
+                    {(recurForm.recType==='interval' || recurForm.recType==='days') && (
+                        <div className="fg"><label className="fl">تتكرر كل كم يوم؟</label><input className="fi" type="number" min="1" value={recurForm.recValue} onChange={e=>setRecurForm({...recurForm,recValue:e.target.value})}/></div>
+                    )}
+                    
+                    {recurForm.recType==='weekly' && (
+                        <div className="fg" style={{gridColumn:'1 / -1'}}>
+                            <label className="fl">اختر أيام التكرار الأسبوعي</label>
+                            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                                {DAYS.map((d,i)=>{
+                                    const isSel = (recurForm.selectedDays||[]).includes(i);
+                                    return <button key={i} className={`btn bsm ${isSel?'bp':'bg'}`} onClick={()=>{
+                                        let sd = [...(recurForm.selectedDays||[])];
+                                        if (isSel) sd = sd.filter(x=>x!==i); else sd.push(i);
+                                        setRecurForm({...recurForm, selectedDays: sd.sort()});
+                                    }}>{d}</button>
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {recurForm.recType==='rotating' && (
+                        <div className="fg" style={{gridColumn:'1 / -1'}}>
+                            <label className="fl">سلسلة الأيام المتناوبة (أضف بالترتيب)</label>
+                            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                                {(recurForm.sequenceDays||[]).map((d,idx)=>(
+                                    <span key={idx} className="badge b-primary" style={{padding:'6px 10px',fontSize:12}}>
+                                        {idx+1}- {DAYS[d]} 
+                                        <I.X style={{width:14,height:14,marginLeft:4,cursor:'pointer'}} onClick={()=>{
+                                            let sq = [...recurForm.sequenceDays];
+                                            sq.splice(idx,1);
+                                            setRecurForm({...recurForm, sequenceDays: sq});
+                                        }}/>
+                                    </span>
+                                ))}
+                            </div>
+                            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                                {DAYS.map((d,i)=>(
+                                    <button key={i} className="btn bg bsm" onClick={()=>{
+                                        setRecurForm({...recurForm, sequenceDays: [...(recurForm.sequenceDays||[]), i]});
+                                    }}>+ أضف {d}</button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {recurForm.recType==='multi_week' && (
+                        <div className="fg" style={{gridColumn:'1 / -1'}}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10,flexWrap:'wrap',gap:8}}>
+                                <label className="fl" style={{margin:0}}>عدد أسابيع الدورة (كم أسبوع تتكرر؟)</label>
+                                <input className="fi" type="number" min="1" max="10" value={recurForm.cycleWeeks||4} onChange={e=>{
+                                    const w = parseInt(e.target.value)||1;
+                                    let wp = [...(recurForm.weekPatterns||[])];
+                                    while(wp.length < w) wp.push([]);
+                                    wp = wp.slice(0, w);
+                                    setRecurForm({...recurForm, cycleWeeks: w, weekPatterns: wp});
+                                }} style={{width:80,textAlign:'center'}}/>
+                            </div>
+                            <p style={{color:'var(--text-dim)',fontSize:12,marginBottom:12}}>حدد الأيام التي يوجد فيها سقي لكل أسبوع من الدورة. الأسبوع يبدأ من "تاريخ البداية" بالأسفل.</p>
+                            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+                                {Array.from({length: recurForm.cycleWeeks||4}).map((_, wIdx) => {
+                                    const pat = (recurForm.weekPatterns||[])[wIdx] || [];
+                                    return <div key={wIdx} style={{background:'var(--surface-2)',padding:'12px',borderRadius:'8px',border:'1px solid var(--border)'}}>
+                                        <div style={{fontSize:13,fontWeight:'bold',marginBottom:8,color:'var(--primary)'}}>الأسبوع {wIdx+1}</div>
+                                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                                            {DAYS.map((d,i)=>{
+                                                const isSel = pat.includes(i);
+                                                return <button key={i} className={`btn bsm ${isSel?'bp':'bg'}`} onClick={()=>{
+                                                    let wp = [...(recurForm.weekPatterns||[])];
+                                                    if(!wp[wIdx]) wp[wIdx] = [];
+                                                    if(isSel) wp[wIdx] = wp[wIdx].filter(x=>x!==i); else wp[wIdx].push(i);
+                                                    setRecurForm({...recurForm, weekPatterns: wp});
+                                                }} style={{padding:'4px 8px',fontSize:12}}>{d}</button>
+                                            })}
+                                        </div>
+                                    </div>
+                                })}
+                            </div>
+                        </div>
+                    )}
+                    
+                    <div className="fg"><label className="fl">تاريخ البداية (مهم جداً للحساب)</label><input className="fi" type="date" value={recurForm.startDate} onChange={e=>setRecurForm({...recurForm,startDate:e.target.value})}/></div>
                 </div>
 
                 <div className="fl" style={{marginBottom:8,marginTop:16}}>أوقات الدوران (الحلقة)</div>
@@ -794,7 +953,13 @@ function App() {
 
                 {/* Selected pattern summary */}
                 <div style={{background:'rgba(20,184,166,0.08)',border:'1px solid rgba(20,184,166,0.2)',borderRadius:9,padding:'10px 14px',fontSize:13,color:'#5eead4',marginBottom:14}}>
-                    📋 النمط المحدد: <strong>{recurForm.recType==='days'?`كل ${recurForm.recValue} يوم`:`كل ${DAYS[parseInt(recurForm.recValue)]||'...'}`}</strong> — دورة مستمرة لا تتوقف — بدءاً من {recurForm.startDate?fmtDate(recurForm.startDate):'...'}
+                    📋 النمط المحدد: <strong>{
+                        recurForm.recType==='interval'||recurForm.recType==='days'?`فاصل ${recurForm.recValue} يوم`:
+                        recurForm.recType==='weekly'?`أسبوعي (${(recurForm.selectedDays||[]).length} أيام)`:
+                        recurForm.recType==='biweekly'?`كل أسبوعين`:
+                        recurForm.recType==='rotating'?`متناوب (${(recurForm.sequenceDays||[]).length} مراحل)`:
+                        recurForm.recType==='multi_week'?`دورة أسابيع مخصصة (${recurForm.cycleWeeks} أسبوع)`:''
+                    }</strong> — دورة مستمرة لا تتوقف — بدءاً من {recurForm.startDate?fmtDate(recurForm.startDate):'...'}
                 </div>
 
                 <button className="btn bp bfull" onClick={handleGenerate}><I.Repeat/> إنشاء الجدول تلقائياً</button>
@@ -815,9 +980,32 @@ function App() {
 
             {/* Manage Records */}
             {adminTab==='manage'&&<div className="card card-glow">
-                <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                     <div className="sttl" style={{marginBottom:0}}><I.List/> جميع السجلات</div>
                     <span className="badge b-primary" style={{marginRight:'auto'}}>{records.length}</span>
+                    <button className="btn bd bsm" onClick={()=>{
+                        const data = JSON.stringify({records, patterns});
+                        const blob = new Blob([data], {type: 'application/json'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href = url; a.download = `falaj-backup.json`; a.click();
+                        URL.revokeObjectURL(url);
+                    }}><I.List style={{width:14,height:14}}/> نسخة (Backup)</button>
+                    <label className="btn bg bsm" style={{cursor:'pointer',margin:0}}>
+                        <input type="file" accept=".json" style={{display:'none'}} onChange={e=>{
+                            const f = e.target.files[0]; if(!f) return;
+                            const r = new FileReader();
+                            r.onload = ev => {
+                                try {
+                                    const d = JSON.parse(ev.target.result);
+                                    if(d.records) setRecords(d.records);
+                                    if(d.patterns) setPatterns(d.patterns);
+                                    showToast("تمت الاستعادة بنجاح");
+                                } catch(err) { showToast("ملف غير صالح","err"); }
+                            };
+                            r.readAsText(f);
+                        }}/>
+                        <I.Repeat style={{width:14,height:14}}/> استعادة
+                    </label>
                 </div>
                 <div className="tbl-wrap">
                     <table>
