@@ -483,9 +483,13 @@ function App() {
         } else if (recType === 'multi_week') {
             const numWeeks = parseInt(cycleWeeks) || 1;
             let addedCount = 0;
+            let currentCycleWeek = 0;
             let loopDays = 0;
             while (addedCount < count) {
-                const weekIndex = Math.floor(loopDays / 7) % numWeeks;
+                if (loopDays > 0 && cur.getDay() === 0) {
+                    currentCycleWeek++; // الأسبوع الجديد يبدأ يوم الأحد
+                }
+                const weekIndex = currentCycleWeek % numWeeks;
                 const currentPattern = (weekPatterns||[])[weekIndex] || [];
                 if (currentPattern.includes(cur.getDay())) {
                     dates.push(new Date(cur));
