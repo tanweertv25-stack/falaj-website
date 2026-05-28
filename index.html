@@ -269,7 +269,7 @@ const WA_NUM = "+96896017822";
 const ATHAR_MINS = 30; // كل أثر = 30 دقيقة
 
 const EF = { name:"", number:"", day:"", date:"", time:"", raddahName:"", athar:"", extraMins:"" };
-const ER = { name:"", number:"", raddahName:"", athar:"", extraMins:"", startDate:"", recType:"interval", recValue:"10", selectedDays:[], sequenceDays:[], cycleWeeks:4, weekPatterns:[[],[],[],[]], cycle:[{time:""}] };
+const ER = {name:"",number:"",raddahName:"",athar:"",extraMins:"",startDate:"",recType:"interval",recValue:"",selectedDays:[],sequenceDays:[],cycleWeeks:1,weekPatterns:[],cycle:[{time:""}],ignoreConflict:false};
 
 const fmt = n => String(n).padStart(2,'0');
 const fmtDate = s => { try { const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; } catch(e){return s;} };
@@ -483,16 +483,16 @@ function App() {
         } else if (recType === 'multi_week') {
             const numWeeks = parseInt(cycleWeeks) || 1;
             let addedCount = 0;
-            const startMs = cur.getTime();
+            let loopDays = 0;
             while (addedCount < count) {
-                const daysDiff = Math.floor((cur.getTime() - startMs) / (1000 * 3600 * 24));
-                const weekIndex = Math.floor(daysDiff / 7) % numWeeks;
+                const weekIndex = Math.floor(loopDays / 7) % numWeeks;
                 const currentPattern = (weekPatterns||[])[weekIndex] || [];
                 if (currentPattern.includes(cur.getDay())) {
                     dates.push(new Date(cur));
                     addedCount++;
                 }
                 cur.setDate(cur.getDate() + 1);
+                loopDays++;
             }
         }
         let patternLabel = `${raddahName} - `;
@@ -510,14 +510,29 @@ function App() {
             const dayStr = DAYS[dt.getDay()];
             const cycleItem = cycle[i % cycle.length];
             const {time} = cycleItem;
-            if (hasConflict(dateStr,time,athar,null,recurForm.extraMins)) { skipped++; return; }
+            if (!recurForm.ignoreConflict && hasConflict(dateStr,time,athar,null,recurForm.extraMins)) { skipped++; return; }
             newRecords.push({id:Date.now()+added,name,number,raddahName,athar,extraMins:recurForm.extraMins||"",time,date:dateStr,day:dayStr,sysLabel:patternLabel});
             added++;
         });
-        if (newRecords.length>0) setRecords(p=>[...p,...newRecords]);
+        
+        if (newRecords.length>0) {
+            setRecords(p=>[...p,...newRecords]);
+            if (skipped > 0) {
+                showToast(`تمت الجدولة: ${added} سجل. (تم تخطي ${skipped} سجل لوجود تعارض في أوقات محجوزة مسبقاً)`);
+            } else {
+                showToast(`تمت الجدولة بنجاح: ${added} سجل.`);
+            }
+        } else {
+            if (skipped > 0) {
+                showToast(`لم يتم إنشاء السجلات! جميع المواعيد (${skipped}) تتعارض مع سجلات محجوزة مسبقاً. حاول تحديد خيار تجاهل التعارض.`,"err");
+            } else {
+                showToast(`لم يتم إنشاء أي سجلات.`,"err");
+            }
+        }
         
         // Save pattern
         setPatterns(p=>[...p,{id:Date.now(),label:patternLabel,data:recurForm}]);
+        setRecurForm(ER);
         showToast(`✅ أُضيف ${added} سجل${skipped>0?' | ⚠️ تجاوز '+skipped+' تعارض':''}`);
         setRecurForm(ER);
     };
@@ -1010,6 +1025,13 @@ function App() {
                     )}
                     
                     <div className="fg"><label className="fl">تاريخ البداية (مهم جداً للحساب)</label><input className="fi" type="date" value={recurForm.startDate} onChange={e=>setRecurForm({...recurForm,startDate:e.target.value})}/></div>
+                    
+                    <div className="fg" style={{gridColumn:'1 / -1', marginTop: 10}}>
+                        <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13}}>
+                            <input type="checkbox" checked={recurForm.ignoreConflict||false} onChange={e=>setRecurForm({...recurForm,ignoreConflict:e.target.checked})}/>
+                            <strong>السماح بتداخل الأوقات:</strong> تجاهل التحقق من التعارض (لا تتخطَّ المواعيد المتعارضة مع سجلات سابقة)
+                        </label>
+                    </div>
                 </div>
 
                 <div className="fl" style={{marginBottom:8,marginTop:16}}>أوقات الدوران (الحلقة)</div>
