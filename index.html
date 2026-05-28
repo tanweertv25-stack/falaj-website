@@ -201,12 +201,15 @@
         }
 
         @media print {
-            body { background: white !important; color: black !important; }
-            .header, .nav, .hide-print, .stats-row, .status-grid, .btn { display: none !important; }
-            .main { padding: 0 !important; max-width: 100% !important; }
-            .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+            body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
+            .header, .nav, .hide-print, .stats-row, .status-grid, .btn, .wa-fab, .install-banner, .toast, .app-bg::before { display: none !important; }
+            .app-bg { background: white !important; min-height: auto !important; }
+            .main { padding: 0 10px !important; max-width: 100% !important; }
+            .card { box-shadow: none !important; border: none !important; background: white !important; }
             table { width: 100% !important; border-collapse: collapse; }
-            th, td { border: 1px solid #aaa !important; padding: 8px !important; color: black !important; background: white !important; }
+            th { border: 2px solid #333 !important; padding: 10px 8px !important; color: white !important; background: #1e293b !important; font-size: 13px !important; }
+            td { border: 1px solid #999 !important; padding: 8px !important; color: black !important; background: white !important; font-size: 12px !important; }
+            tr:nth-child(even) td { background: #f8f9fa !important; }
             .badge { border: 1px solid #aaa !important; background: transparent !important; color: black !important; }
             .print-only { display: block !important; }
             .print-only-table { display: table !important; }
@@ -265,8 +268,8 @@ const ADMIN_PASS = "Asdf@#$1234";
 const WA_NUM = "+96896017822";
 const ATHAR_MINS = 30; // كل أثر = 30 دقيقة
 
-const EF = { name:"", number:"", day:"", date:"", time:"", raddahName:"", athar:"" };
-const ER = { name:"", number:"", raddahName:"", athar:"", startDate:"", recType:"interval", recValue:"10", selectedDays:[], sequenceDays:[], cycleWeeks:4, weekPatterns:[[],[],[],[]], cycle:[{time:""}] };
+const EF = { name:"", number:"", day:"", date:"", time:"", raddahName:"", athar:"", extraMins:"" };
+const ER = { name:"", number:"", raddahName:"", athar:"", extraMins:"", startDate:"", recType:"interval", recValue:"10", selectedDays:[], sequenceDays:[], cycleWeeks:4, weekPatterns:[[],[],[],[]], cycle:[{time:""}] };
 
 const fmt = n => String(n).padStart(2,'0');
 const fmtDate = s => { try { const [y,m,d]=s.split('-'); return `${d}/${m}/${y}`; } catch(e){return s;} };
@@ -277,7 +280,9 @@ const fmtTime12 = t => {
     return `${fmt(h12)}:${fmt(m)} ${ap}`;
 };
 const toMs = (date, time) => { try { const [y,mo,d]=date.split('-').map(Number); const [h,mn]=time.split(':').map(Number); return new Date(y,mo-1,d,h,mn,0).getTime(); } catch(e){return 0;} };
-const atharMs = v => (parseFloat(v)||0) * ATHAR_MINS * 60 * 1000;
+const atharMs = (v, extraMins=0) => (parseFloat(v)||0) * ATHAR_MINS * 60 * 1000 + (parseInt(extraMins)||0) * 60 * 1000;
+const formatAthar = (athar, extraMins) => { let p=[]; if(athar) p.push(`${athar} أثر`); if(extraMins) p.push(`${extraMins} دق`); return p.join(' + ') || '-'; };
+const totalMins = (athar, extraMins) => (parseFloat(athar)||0)*ATHAR_MINS + (parseInt(extraMins)||0);
 
 function App() {
     const [view, setView] = useState('public');
@@ -304,6 +309,8 @@ function App() {
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [showInstall, setShowInstall] = useState(false);
     const [conflictMsg, setConflictMsg] = useState("");
+    const [filterRaddah, setFilterRaddah] = useState("");
+    const [manageFilter, setManageFilter] = useState("");
     const lastNotif = useRef({});
 
     useEffect(() => { const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
@@ -347,7 +354,7 @@ function App() {
         }).sort((a,b)=>a.startMs-b.startMs);
 
         for (let i=0; i<sorted.length; i++) {
-            const a = atharMs(sorted[i].athar);
+            const a = atharMs(sorted[i].athar, sorted[i].extraMins);
             if (a > 0) {
                 sorted[i].endMs = sorted[i].startMs + a;
             } else if (i < sorted.length-1) {
@@ -391,10 +398,10 @@ function App() {
     },[now,subs,processed]);
 
     /* ── Conflict check ── */
-    const hasConflict = (date, time, athar, excludeId=null) => {
+    const hasConflict = (date, time, athar, excludeId=null, extraMins=0) => {
         const newStart = toMs(date,time);
         if(!newStart) return false;
-        const a = atharMs(athar);
+        const a = atharMs(athar, extraMins);
         const newEnd = a > 0 ? newStart+a : newStart+1;
 
         return processed.some(r => {
@@ -410,7 +417,7 @@ function App() {
         if (!form.name.trim()||!form.number||!form.date||!form.time||!form.day||!form.raddahName.trim()) {
             showToast("يرجى تعبئة جميع الحقول","err"); return;
         }
-        if (hasConflict(form.date,form.time,form.athar,editId)) {
+        if (hasConflict(form.date,form.time,form.athar,editId,form.extraMins)) {
             setConflictMsg(`⚠️ تعارض في الوقت! يوجد سجل آخر يتداخل مع هذا الوقت (${fmtTime12(form.time)} في ${fmtDate(form.date)}). الرجاء اختيار وقت مختلف.`);
             return;
         }
@@ -502,8 +509,8 @@ function App() {
             const dayStr = DAYS[dt.getDay()];
             const cycleItem = cycle[i % cycle.length];
             const {time} = cycleItem;
-            if (hasConflict(dateStr,time,athar,null)) { skipped++; return; }
-            newRecords.push({id:Date.now()+added,name,number,raddahName,athar,time,date:dateStr,day:dayStr,sysLabel:patternLabel});
+            if (hasConflict(dateStr,time,athar,null,recurForm.extraMins)) { skipped++; return; }
+            newRecords.push({id:Date.now()+added,name,number,raddahName,athar,extraMins:recurForm.extraMins||"",time,date:dateStr,day:dayStr,sysLabel:patternLabel});
             added++;
         });
         if (newRecords.length>0) setRecords(p=>[...p,...newRecords]);
@@ -515,7 +522,7 @@ function App() {
     };
 
     const handleEdit = r => {
-        setForm({name:r.name,number:r.number,day:r.day,date:r.date,time:r.time,raddahName:r.raddahName,athar:r.athar||""});
+        setForm({name:r.name,number:r.number,day:r.day,date:r.date,time:r.time,raddahName:r.raddahName,athar:r.athar||"",extraMins:r.extraMins||""});
         setEditId(r.id); setAdminTab('manual'); setConflictMsg("");
         window.scrollTo({top:0,behavior:'smooth'});
     };
@@ -530,7 +537,7 @@ function App() {
         }
     };
     const shareRaddah = r => {
-        const txt = `تذكير دور سقي الفلج 💧\nالاسم: ${r.name}\nالردة: ${r.raddahName} ${r.athar?`(${r.athar} أثر)`:''}\nالتاريخ: ${r.day}، ${fmtDate(r.date)}\nالوقت: ${fmtTime12(r.time)}\n📍 توقيت ولاية منح، عُمان`;
+        const txt = `تذكير دور سقي الفلج 💧\nالاسم: ${r.name}\nالردة: ${r.raddahName} ${(r.athar||r.extraMins)?`(${formatAthar(r.athar, r.extraMins)})`:''}\nالتاريخ: ${r.day}، ${fmtDate(r.date)}\nالوقت: ${fmtTime12(r.time)}\n📍 توقيت ولاية منح، عُمان`;
         window.open(`https://wa.me/?text=${encodeURIComponent(txt)}`, '_blank');
     };
 
@@ -572,7 +579,7 @@ function App() {
                                 <div className="ichip">
                                     <div style={{fontSize:10,opacity:.7,marginBottom:3}}>الردة</div>
                                     <div style={{fontWeight:700,fontSize:13}}>{status.current.raddahName}</div>
-                                    {status.current.athar&&<div style={{fontSize:11,opacity:.8,marginTop:4}}>{status.current.athar} أثر = {parseFloat(status.current.athar)*ATHAR_MINS} دقيقة</div>}
+                                    {(status.current.athar||status.current.extraMins)&&<div style={{fontSize:11,opacity:.8,marginTop:4}}>{formatAthar(status.current.athar, status.current.extraMins)} = {totalMins(status.current.athar, status.current.extraMins)} دقيقة</div>}
                                 </div>
                                 <div className="ichip">
                                     <div style={{fontSize:10,opacity:.7,marginBottom:3}}>الوقت المتبقي</div>
@@ -592,7 +599,7 @@ function App() {
                         <span className="badge b-indigo" style={{marginBottom:14,display:'inline-flex'}}><I.Next style={{width:12,height:12}}/> التالي</span>
                         {status.next ? <>
                             <div style={{fontSize:22,fontWeight:800,margin:'0 0 4px'}}>{status.next.name}</div>
-                            <div style={{color:'var(--text-muted)',fontSize:13,marginBottom:16}}>ردة: <strong style={{color:'var(--text)'}}>{status.next.raddahName} {status.next.athar&&`(${status.next.athar} أثر)`}</strong></div>
+                            <div style={{color:'var(--text-muted)',fontSize:13,marginBottom:16}}>ردة: <strong style={{color:'var(--text)'}}>{status.next.raddahName} {(status.next.athar||status.next.extraMins)&&`(${formatAthar(status.next.athar, status.next.extraMins)})`}</strong></div>
                             <div style={{display:'flex',flexDirection:'column',gap:6}}>
                                 <div className="info-row"><I.Cal style={{width:14,height:14}}/>{status.next.day}، {fmtDate(status.next.date)}</div>
                                 <div className="info-row"><I.Clock style={{width:14,height:14}}/>يبدأ <strong dir="ltr">{fmtTime12(status.next.time)}</strong></div>
@@ -621,7 +628,7 @@ function App() {
                                 return <tr key={r.id} className={isCur?'r-active':isNxt?'r-next':''}>
                                     <td><span className="pname">{r.name}</span>{isCur&&<span className="badge b-success rlabel blink" style={{marginRight:8}}>الآن</span>}{isNxt&&<span className="badge b-primary rlabel" style={{marginRight:8}}>التالي</span>}</td>
                                     <td>{r.raddahName}</td>
-                                    <td>{r.athar?<span className="badge b-surface">{r.athar} أثر = {parseFloat(r.athar)*ATHAR_MINS} دق</span>:'-'}</td>
+                                    <td>{(r.athar||r.extraMins)?<span className="badge b-surface">{formatAthar(r.athar, r.extraMins)} = {totalMins(r.athar, r.extraMins)} دق</span>:'-'}</td>
                                     <td><span style={{fontFamily:'JetBrains Mono',fontWeight:700,color:'var(--text)'}} dir="ltr">{fmtTime12(r.time)}</span></td>
                                     <td><button className="btn bg bic" style={{padding:6,borderRadius:8,color:'#25D366',borderColor:'rgba(37,211,102,0.3)'}} onClick={()=>shareRaddah(r)} title="مشاركة عبر واتساب"><I.WhatsApp style={{width:16,height:16}}/></button></td>
                                 </tr>;
@@ -642,10 +649,14 @@ function App() {
             return r.name.toLowerCase().includes(q) || r.raddahName.toLowerCase().includes(q);
         }) : [];
         mine = mine.filter(r => r.endMs > yesterdayMs);
+
+        // Unique raddah names from results
+        const raddahOptions = [...new Set(mine.map(r => r.raddahName))].sort();
+        const filtered = filterRaddah ? mine.filter(r => r.raddahName === filterRaddah) : mine;
         
         const handleDownloadCSV = () => {
-            let csv = "الاسم,الرقم,الردة,الأثر,اليوم,التاريخ,الوقت,النظام\n";
-            mine.forEach(r => { csv += `${r.name},${r.number},${r.raddahName},${r.athar},${r.day},${r.date},${fmtTime12(r.time)},${r.sysLabel||'غير محدد'}\n`; });
+            let csv = "الاسم,الرقم,الردة,الأثر,الدقائق الإضافية,اليوم,التاريخ,الوقت,النظام\n";
+            filtered.forEach(r => { csv += `${r.name},${r.number},${r.raddahName},${r.athar||0},${r.extraMins||0},${r.day},${r.date},${fmtTime12(r.time)},${r.sysLabel||'غير محدد'}\n`; });
             const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
@@ -665,38 +676,56 @@ function App() {
             </div>
             {!q&&<div className="empty hide-print"><I.Search/><p>أدخل اسمك للبحث</p></div>}
             {q&&!mine.length&&<div className="empty hide-print"><I.X/><p>لا نتائج لـ "{q}"</p></div>}
-            
-            {mine.length>0&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,flexWrap:'wrap',gap:10}} className="hide-print">
-                <div style={{fontSize:14,fontWeight:'bold',color:'var(--primary)'}}>تم العثور على {mine.length} موعد قادم</div>
-                <div style={{display:'flex',gap:8}}>
-                    <button className="btn bd bsm" onClick={handleDownloadCSV}><I.List style={{width:14,height:14}}/> تنزيل ملف</button>
-                    <button className="btn bp bsm" onClick={()=>window.print()}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> طباعة الجداول</button>
+
+            {mine.length>0&&<div className="hide-print">
+                {/* Raddah Filter */}
+                {raddahOptions.length>1&&<div style={{marginBottom:14}}>
+                    <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',marginBottom:6}}>🔽 تصفية حسب الردة:</div>
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                        <button className={`btn bsm ${!filterRaddah?'bp':'bg'}`} onClick={()=>setFilterRaddah('')}>الكل ({mine.length})</button>
+                        {raddahOptions.map(name=>(
+                            <button key={name} className={`btn bsm ${filterRaddah===name?'bp':'bg'}`} onClick={()=>setFilterRaddah(name)}>
+                                {name} ({mine.filter(r=>r.raddahName===name).length})
+                            </button>
+                        ))}
+                    </div>
+                </div>}
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12,flexWrap:'wrap',gap:10}}>
+                    <div style={{fontSize:14,fontWeight:'bold',color:'var(--primary)'}}>
+                        {filterRaddah?`ردة: ${filterRaddah} — `:''}تم العثور على {filtered.length} موعد قادم
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                        <button className="btn bd bsm" onClick={handleDownloadCSV}><I.List style={{width:14,height:14}}/> تنزيل ملف</button>
+                        <button className="btn bp bsm" onClick={()=>window.print()}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg> طباعة</button>
+                    </div>
                 </div>
             </div>}
             
-            <div className="print-only" style={{display:'none',textAlign:'center',marginBottom:20,fontSize:20,fontWeight:'bold'}}>جدول سقي الفلج (خاص بـ: {searchQ})</div>
+            <div className="print-only" style={{display:'none',textAlign:'center',marginBottom:20,fontSize:20,fontWeight:'bold'}}>
+                جدول سقي الفلج — {filterRaddah?`ردة: ${filterRaddah}`:searchQ}
+            </div>
             
             <table className="print-only-table" style={{width:'100%',borderCollapse:'collapse',marginTop:20,textAlign:'right'}}>
                 <thead>
-                    <tr style={{background:'#f1f5f9'}}><th>الاسم</th><th>الرقم</th><th>الردة</th><th>الأثر</th><th>النظام المتبع</th><th>اليوم</th><th>التاريخ</th><th>الوقت</th></tr>
+                    <tr style={{background:'#1e293b',color:'white'}}><th>الاسم</th><th>الرقم</th><th>الردة</th><th>الأثر</th><th>اليوم</th><th>التاريخ</th><th>الوقت</th></tr>
                 </thead>
                 <tbody>
-                    {mine.map(r => <tr key={'p'+r.id}>
+                    {filtered.map(r => <tr key={'p'+r.id}>
                         <td style={{fontWeight:'bold'}}>{r.name}</td><td>{r.number}</td><td>{r.raddahName}</td>
-                        <td>{r.athar}</td><td>{r.sysLabel||'إضافة يدوية'}</td>
+                        <td>{formatAthar(r.athar, r.extraMins)}</td>
                         <td>{r.day}</td><td dir="ltr">{fmtDate(r.date)}</td><td dir="ltr" style={{fontFamily:'monospace',fontWeight:'bold'}}>{fmtTime12(r.time)}</td>
                     </tr>)}
                 </tbody>
             </table>
 
             <div className="hide-print">
-            {mine.map(r=>{
+            {filtered.map(r=>{
                 const isCur=status.current?.id===r.id, isSub=subs.includes(r.id);
                 return <div key={r.id} className={`sitem ${isCur?'sc':''}`}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10}}>
                         <div style={{flex:1}}>
                             <div style={{fontSize:16,fontWeight:800,marginBottom:4}}>{r.name} {isCur&&<span className="badge b-success blink hide-print">دورك الآن!</span>}</div>
-                            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:6}}>الرقم: {r.number} | الردة: <strong style={{color:'var(--text)'}}>{r.raddahName}</strong> {r.athar&&<span style={{fontSize:11}}>({r.athar} أثر)</span>}</div>
+                            <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:6}}>الرقم: {r.number} | الردة: <strong style={{color:'var(--text)'}}>{r.raddahName}</strong> {(r.athar||r.extraMins)&&<span style={{fontSize:11}}>({formatAthar(r.athar, r.extraMins)})</span>}</div>
                             <div style={{fontSize:12,color:'var(--primary)',background:'var(--surface-2)',padding:'4px 8px',borderRadius:6,display:'inline-block',marginBottom:8}}>النظام المتبع: {r.sysLabel || 'إضافة يدوية'}</div>
                             <div style={{fontSize:13,color:'var(--text)'}}><I.Cal style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> {r.day}، {fmtDate(r.date)} &nbsp; <I.Clock style={{width:13,height:13,verticalAlign:'-2px',color:'var(--primary)'}}/> <span dir="ltr">{fmtTime12(r.time)}</span></div>
                         </div>
@@ -715,6 +744,7 @@ function App() {
                     </div>}
                 </div>;
             })}
+            {filtered.length===0&&mine.length>0&&<div className="empty"><I.Search/><p>لا توجد مواعيد لهذه الردة</p></div>}
             </div>
         </div>;
     };
@@ -794,7 +824,12 @@ function App() {
             <button className="btn bp bfull" onClick={()=>{if(adminPass===ADMIN_PASS)setIsAdmin(true);else showToast('كلمة المرور خاطئة','err');}}><I.Shield/> دخول</button>
         </div>;
 
-        const allRows=[...processed].reverse();
+        let allRows=[...processed].reverse();
+        if(manageFilter) {
+            const mq = manageFilter.trim().toLowerCase();
+            allRows = allRows.filter(r => r.name.toLowerCase().includes(mq) || r.raddahName.toLowerCase().includes(mq));
+        }
+
         return <div className="animate-in" style={{maxWidth:980,margin:'0 auto'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20,flexWrap:'wrap',gap:12}}>
                 <h1 style={{fontSize:22,fontWeight:900}}>لوحة التحكم</h1>
@@ -817,11 +852,12 @@ function App() {
                     <div className="fg"><label className="fl">اسم الردة</label><input className="fi" value={form.raddahName} onChange={e=>setForm({...form,raddahName:e.target.value})}/></div>
                     <div className="fg"><label className="fl">الرقم التعريفي</label><input className="fi" type="number" value={form.number} onChange={e=>setForm({...form,number:e.target.value})}/></div>
                     <div className="fg">
-                        <label className="fl">كم أثر؟ <span style={{color:'var(--text-dim)',fontWeight:400}}>(كل أثر = {ATHAR_MINS} دقيقة)</span></label>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                            <input className="fi" type="number" step="0.5" placeholder="مثال: 4" value={form.athar} onChange={e=>setForm({...form,athar:e.target.value})} style={{flex:1}}/>
-                            {form.athar&&<span className="badge b-teal" style={{whiteSpace:'nowrap'}}>{parseFloat(form.athar)*ATHAR_MINS} دق</span>}
+                        <label className="fl">كم أثر و/أو دقائق؟ <span style={{color:'var(--text-dim)',fontWeight:400}}>(الأثر = {ATHAR_MINS} دق)</span></label>
+                        <div style={{display:'flex',gap:8}}>
+                            <input className="fi" type="number" step="0.5" placeholder="الآثار" value={form.athar} onChange={e=>setForm({...form,athar:e.target.value})} style={{flex:1}}/>
+                            <input className="fi" type="number" placeholder="دقائق" value={form.extraMins} onChange={e=>setForm({...form,extraMins:e.target.value})} style={{flex:1}}/>
                         </div>
+                        {(form.athar||form.extraMins)&&<div style={{fontSize:12,color:'var(--teal)',fontWeight:'bold',marginTop:4}}>الإجمالي: {totalMins(form.athar, form.extraMins)} دقيقة</div>}
                     </div>
                     <div className="fg"><label className="fl">اليوم</label><select className="fsel" value={form.day} onChange={e=>setForm({...form,day:e.target.value})}><option value="" disabled>اختر</option>{DAYS.map(d=><option key={d}>{d}</option>)}</select></div>
                     <div className="fg"><label className="fl">التاريخ</label><input className="fi" type="date" value={form.date} onChange={e=>{setForm({...form,date:e.target.value});setConflictMsg("");}}/></div>
@@ -850,8 +886,12 @@ function App() {
                     <div className="fg"><label className="fl">اسم الردة</label><input className="fi" value={recurForm.raddahName} onChange={e=>setRecurForm({...recurForm,raddahName:e.target.value})}/></div>
                     <div className="fg"><label className="fl">الرقم</label><input className="fi" type="number" value={recurForm.number} onChange={e=>setRecurForm({...recurForm,number:e.target.value})}/></div>
                     <div className="fg">
-                        <label className="fl">عدد الآثار <span style={{color:'var(--text-dim)',fontWeight:400}}>(= {(parseFloat(recurForm.athar)||0)*ATHAR_MINS} دق)</span></label>
-                        <input className="fi" type="number" step="0.5" value={recurForm.athar} onChange={e=>setRecurForm({...recurForm,athar:e.target.value})}/>
+                        <label className="fl">كم أثر و/أو دقائق؟ <span style={{color:'var(--text-dim)',fontWeight:400}}>(الأثر = {ATHAR_MINS} دق)</span></label>
+                        <div style={{display:'flex',gap:8}}>
+                            <input className="fi" type="number" step="0.5" placeholder="الآثار" value={recurForm.athar} onChange={e=>setRecurForm({...recurForm,athar:e.target.value})} style={{flex:1}}/>
+                            <input className="fi" type="number" placeholder="دقائق" value={recurForm.extraMins} onChange={e=>setRecurForm({...recurForm,extraMins:e.target.value})} style={{flex:1}}/>
+                        </div>
+                        {(recurForm.athar||recurForm.extraMins)&&<div style={{fontSize:12,color:'var(--teal)',fontWeight:'bold',marginTop:4}}>الإجمالي: {totalMins(recurForm.athar, recurForm.extraMins)} دقيقة</div>}
                     </div>
                     
                     <div className="fg">
@@ -1021,6 +1061,23 @@ function App() {
                         <I.Repeat style={{width:14,height:14}}/> استعادة
                     </label>
                 </div>
+                
+                {/* Admin Filter & Bulk Delete */}
+                <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',gap:10,flexWrap:'wrap',background:'var(--surface-2)'}}>
+                    <div className="search-wrap" style={{margin:0,flex:1,minWidth:250}}>
+                        <div className="search-ic"><I.Search style={{width:16,height:16}}/></div>
+                        <input className="search-inp" type="text" placeholder="ابحث بالاسم أو الردة للفلترة..." value={manageFilter} onChange={e=>setManageFilter(e.target.value)} style={{background:'var(--bg-2)'}}/>
+                    </div>
+                    {manageFilter&&allRows.length>0&&<button className="btn bd" style={{borderColor:'#f87171',color:'#f87171'}} onClick={()=>{
+                        if(confirm(`هل أنت متأكد من حذف جميع هذه السجلات (${allRows.length}) دفعة واحدة؟`)){
+                            const ids = new Set(allRows.map(r=>r.id));
+                            setRecords(p=>p.filter(r=>!ids.has(r.id)));
+                            setManageFilter('');
+                            showToast(`تم حذف ${ids.size} سجل بنجاح`);
+                        }
+                    }}><I.Trash style={{width:14,height:14}}/> حذف جميع الظاهر</button>}
+                </div>
+
                 <div className="tbl-wrap">
                     <table>
                         <thead><tr><th>الاسم</th><th>الردة</th><th>الأثر</th><th>التاريخ</th><th>الوقت</th><th>إجراءات</th></tr></thead>
@@ -1029,7 +1086,7 @@ function App() {
                             {allRows.map(r=><tr key={r.id}>
                                 <td className="pname">{r.name}</td>
                                 <td>{r.raddahName}</td>
-                                <td>{r.athar?<span className="badge b-surface">{r.athar}</span>:'-'}</td>
+                                <td>{(r.athar||r.extraMins)?<span className="badge b-surface">{formatAthar(r.athar, r.extraMins)}</span>:'-'}</td>
                                 <td>{fmtDate(r.date)}</td>
                                 <td dir="ltr" style={{fontFamily:'JetBrains Mono',fontWeight:700}}>{fmtTime12(r.time)}</td>
                                 <td>
