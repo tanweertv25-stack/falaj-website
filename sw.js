@@ -1,4 +1,4 @@
-const CACHE_NAME = 'falaj-v10';
+const CACHE_NAME = 'falaj-v11';
 const ASSETS = ['./', './index.html', './icon.svg', './manifest.json'];
 
 self.addEventListener('install', e => {

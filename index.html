@@ -1159,13 +1159,14 @@ function App() {
 
                 <div className="tbl-wrap">
                     <table>
-                        <thead><tr><th>الاسم</th><th>الردة</th><th>الأثر</th><th>التاريخ</th><th>الوقت</th><th>إجراءات</th></tr></thead>
+                        <thead><tr><th>الاسم</th><th>الردة</th><th>الأثر</th><th>اليوم</th><th>التاريخ</th><th>الوقت</th><th>إجراءات</th></tr></thead>
                         <tbody>
-                            {!allRows.length&&<tr><td colSpan="6"><div className="empty"><p>لا سجلات</p></div></td></tr>}
+                            {!allRows.length&&<tr><td colSpan="7"><div className="empty"><p>لا سجلات</p></div></td></tr>}
                             {allRows.map(r=><tr key={r.id}>
                                 <td className="pname">{r.name}</td>
                                 <td>{r.raddahName}</td>
                                 <td>{(r.athar||r.extraMins)?<span className="badge b-surface">{formatAthar(r.athar, r.extraMins)}</span>:'-'}</td>
+                                <td>{r.day}</td>
                                 <td>{fmtDate(r.date)}</td>
                                 <td dir="ltr" style={{fontFamily:'JetBrains Mono',fontWeight:700}}>{fmtTime12(r.time)}</td>
                                 <td>
