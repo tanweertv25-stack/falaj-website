@@ -310,7 +310,8 @@ function App() {
     const [showInstall, setShowInstall] = useState(false);
     const [conflictMsg, setConflictMsg] = useState("");
     const [filterRaddah, setFilterRaddah] = useState("");
-    const [manageFilter, setManageFilter] = useState("");
+    const [manageNameFilter, setManageNameFilter] = useState("");
+    const [manageRaddahFilter, setManageRaddahFilter] = useState("");
     const lastNotif = useRef({});
 
     useEffect(() => { const t=setInterval(()=>setNow(new Date()),1000); return()=>clearInterval(t); },[]);
@@ -804,14 +805,29 @@ function App() {
                 </div>
             </div>
 
-            {/* Install App */}
-            {showInstall&&<div className="sec-card" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-                <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <I.Mobile style={{width:20,height:20,color:'var(--primary)'}}/>
-                    <div><div style={{fontWeight:800,fontSize:15}}>تثبيت التطبيق على هاتفك</div><div style={{fontSize:12,color:'var(--text-muted)'}}>يعمل بدون إنترنت بعد التثبيت</div></div>
-                </div>
-                <button className="btn bp" onClick={installApp}><I.Mobile style={{width:14,height:14}}/> تثبيت</button>
-            </div>}
+            {/* Install App - Always Visible */}
+            <div className="sec-card">
+                <h3 style={{fontSize:16,fontWeight:800,marginBottom:12,display:'flex',alignItems:'center',gap:7}}><I.Mobile style={{width:16,height:16,color:'var(--primary)'}}/> تثبيت التطبيق</h3>
+                {deferredPrompt ? <>
+                    <p style={{color:'var(--text-muted)',fontSize:13,marginBottom:14}}>ثبّت نظام فلج على هاتفك أو جهازك للوصول السريع والعمل بدون إنترنت.</p>
+                    <button className="btn bp bfull" onClick={installApp}><I.Mobile style={{width:16,height:16}}/> تثبيت التطبيق الآن</button>
+                </> : <>
+                    <p style={{color:'var(--text-muted)',fontSize:13,marginBottom:14}}>لتثبيت التطبيق على جهازك، اتبع الخطوات التالية:</p>
+                    <div style={{background:'var(--bg-2)',border:'1px solid var(--border)',borderRadius:12,padding:16}}>
+                        <div style={{fontSize:14,fontWeight:700,marginBottom:10,color:'var(--primary)'}}>📱 على الهاتف (Android / iPhone):</div>
+                        <ol style={{paddingRight:20,fontSize:13,color:'var(--text-muted)',lineHeight:2}}>
+                            <li>افتح الموقع في متصفح Chrome أو Safari</li>
+                            <li>اضغط على قائمة المتصفح (⋮ أو ⬆️)</li>
+                            <li>اختر "إضافة إلى الشاشة الرئيسية" أو "Install App"</li>
+                        </ol>
+                        <div style={{fontSize:14,fontWeight:700,marginTop:14,marginBottom:10,color:'var(--primary)'}}>💻 على الكمبيوتر:</div>
+                        <ol style={{paddingRight:20,fontSize:13,color:'var(--text-muted)',lineHeight:2}}>
+                            <li>افتح الموقع في Chrome</li>
+                            <li>اضغط على أيقونة التثبيت في شريط العنوان أو القائمة</li>
+                        </ol>
+                    </div>
+                </>}
+            </div>
         </div>;
     };
 
@@ -825,9 +841,13 @@ function App() {
         </div>;
 
         let allRows=[...processed].reverse();
-        if(manageFilter) {
-            const mq = manageFilter.trim().toLowerCase();
-            allRows = allRows.filter(r => r.name.toLowerCase().includes(mq) || r.raddahName.toLowerCase().includes(mq));
+        if(manageNameFilter) {
+            const mq = manageNameFilter.trim().toLowerCase();
+            allRows = allRows.filter(r => r.name.toLowerCase().includes(mq));
+        }
+        if(manageRaddahFilter) {
+            const rq = manageRaddahFilter.trim().toLowerCase();
+            allRows = allRows.filter(r => (r.raddahName||'').toLowerCase().includes(rq));
         }
 
         return <div className="animate-in" style={{maxWidth:980,margin:'0 auto'}}>
@@ -1061,21 +1081,80 @@ function App() {
                         <I.Repeat style={{width:14,height:14}}/> استعادة
                     </label>
                 </div>
+
+                {/* Stats Summary Cards */}
+                {(()=>{
+                    const raddahSet = [...new Set(records.map(r=>r.raddahName).filter(Boolean))];
+                    const dateSet = [...new Set(records.map(r=>r.date).filter(Boolean))];
+                    const nameSet = [...new Set(records.map(r=>r.name).filter(Boolean))];
+                    return <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(140px,1fr))',gap:10}}>
+                        <div style={{background:'rgba(14,165,233,0.1)',border:'1px solid rgba(14,165,233,0.2)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+                            <div style={{fontSize:22,fontWeight:900,color:'var(--primary)'}}>{records.length}</div>
+                            <div style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>إجمالي السجلات</div>
+                        </div>
+                        <div style={{background:'rgba(20,184,166,0.1)',border:'1px solid rgba(20,184,166,0.2)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+                            <div style={{fontSize:22,fontWeight:900,color:'var(--teal)'}}>{raddahSet.length}</div>
+                            <div style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>عدد الردات</div>
+                        </div>
+                        <div style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.2)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+                            <div style={{fontSize:22,fontWeight:900,color:'var(--gold)'}}>{nameSet.length}</div>
+                            <div style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>عدد الأشخاص</div>
+                        </div>
+                        <div style={{background:'rgba(99,102,241,0.1)',border:'1px solid rgba(99,102,241,0.2)',borderRadius:12,padding:'12px 14px',textAlign:'center'}}>
+                            <div style={{fontSize:22,fontWeight:900,color:'#a5b4fc'}}>{dateSet.length}</div>
+                            <div style={{fontSize:11,color:'var(--text-muted)',fontWeight:600}}>عدد الأيام</div>
+                        </div>
+                    </div>;
+                })()}
                 
                 {/* Admin Filter & Bulk Delete */}
-                <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',gap:10,flexWrap:'wrap',background:'var(--surface-2)'}}>
-                    <div className="search-wrap" style={{margin:0,flex:1,minWidth:250}}>
+                <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',display:'flex',gap:10,flexWrap:'wrap',background:'var(--surface-2)',alignItems:'center'}}>
+                    <div className="search-wrap" style={{margin:0,flex:1,minWidth:200}}>
                         <div className="search-ic"><I.Search style={{width:16,height:16}}/></div>
-                        <input className="search-inp" type="text" placeholder="ابحث بالاسم أو الردة للفلترة..." value={manageFilter} onChange={e=>setManageFilter(e.target.value)} style={{background:'var(--bg-2)'}}/>
+                        <input className="search-inp" type="text" placeholder="ابحث بالاسم..." value={manageNameFilter} onChange={e=>setManageNameFilter(e.target.value)} style={{background:'var(--bg-2)'}}/>
                     </div>
-                    {manageFilter&&allRows.length>0&&<button className="btn bd" style={{borderColor:'#f87171',color:'#f87171'}} onClick={()=>{
+                    <select style={{background:'var(--bg-2)',color:'var(--text)',border:'1px solid var(--border)',borderRadius:9,padding:'9px 12px',fontSize:13,fontFamily:'Cairo',cursor:'pointer',minWidth:140}} value={manageRaddahFilter} onChange={e=>setManageRaddahFilter(e.target.value)}>
+                        <option value="">كل الردات</option>
+                        {[...new Set(records.map(r=>r.raddahName).filter(Boolean))].sort().map(rd=>
+                            <option key={rd} value={rd}>{rd}</option>
+                        )}
+                    </select>
+                    {(manageNameFilter||manageRaddahFilter)&&<span className="badge b-gold" style={{fontSize:12}}>عرض: {allRows.length} سجل</span>}
+                </div>
+
+                {/* Bulk Actions Toolbar */}
+                {(manageNameFilter||manageRaddahFilter)&&allRows.length>0&&<div style={{padding:'10px 18px',borderBottom:'1px solid var(--border)',display:'flex',gap:8,flexWrap:'wrap',background:'rgba(239,68,68,0.05)'}}>
+                    <button className="btn bd bsm" style={{borderColor:'#f87171',color:'#f87171'}} onClick={()=>{
                         if(confirm(`هل أنت متأكد من حذف جميع هذه السجلات (${allRows.length}) دفعة واحدة؟`)){
                             const ids = new Set(allRows.map(r=>r.id));
                             setRecords(p=>p.filter(r=>!ids.has(r.id)));
-                            setManageFilter('');
+                            setManageNameFilter('');
+                            setManageRaddahFilter('');
                             showToast(`تم حذف ${ids.size} سجل بنجاح`);
                         }
-                    }}><I.Trash style={{width:14,height:14}}/> حذف جميع الظاهر</button>}
+                    }}><I.Trash style={{width:13,height:13}}/> حذف الكل ({allRows.length})</button>
+                    <button className="btn bd bsm" onClick={()=>{
+                        const csv = '\uFEFF'+'الاسم,الردة,الأثر,التاريخ,الوقت\n'+allRows.map(r=>`${r.name},${r.raddahName},${formatAthar(r.athar,r.extraMins)},${r.date},${r.time}`).join('\n');
+                        const blob = new Blob([csv],{type:'text/csv;charset=utf-8'});
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a'); a.href=url; a.download=`سجلات-مفلترة.csv`; a.click();
+                        URL.revokeObjectURL(url);
+                    }}><I.List style={{width:13,height:13}}/> تصدير الظاهر CSV</button>
+                    <button className="btn bd bsm" onClick={()=>{setManageNameFilter('');setManageRaddahFilter('');}}><I.X style={{width:13,height:13}}/> إلغاء الفلتر</button>
+                </div>}
+
+                {/* Delete All Records */}
+                <div style={{padding:'10px 18px',borderBottom:'1px solid var(--border)',display:'flex',gap:8,justifyContent:'flex-end'}}>
+                    <button className="btn bd bsm" style={{borderColor:'#f87171',color:'#f87171'}} onClick={()=>{
+                        if(records.length===0){showToast('لا توجد سجلات','err');return;}
+                        if(confirm(`تحذير: هل تريد حذف جميع السجلات (${records.length})؟ لا يمكن التراجع!`)){
+                            if(confirm('تأكيد نهائي: سيتم مسح كل شيء!')){
+                                const c = records.length;
+                                setRecords([]);
+                                showToast(`تم حذف ${c} سجل`);
+                            }
+                        }
+                    }}><I.Alert style={{width:13,height:13}}/> حذف جميع السجلات</button>
                 </div>
 
                 <div className="tbl-wrap">
