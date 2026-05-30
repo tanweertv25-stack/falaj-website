@@ -279,7 +279,7 @@ const fmtTime12 = t => {
     const ap = h>=12?'م':'ص'; const h12 = h%12||12;
     return `${fmt(h12)}:${fmt(m)} ${ap}`;
 };
-const toMs = (date, time) => { try { const [y,mo,d]=date.split('-').map(Number); const [h,mn]=time.split(':').map(Number); return new Date(y,mo-1,d,h,mn,0).getTime(); } catch(e){return 0;} };
+const toMs = (date, time) => { try { const [y,mo,d]=date.split('-').map(Number); const [h,mn]=time.split(':').map(Number); return Date.UTC(y, mo - 1, d, h - 4, mn, 0); } catch(e){return 0;} };
 const atharMs = (v, extraMins=0) => (parseFloat(v)||0) * ATHAR_MINS * 60 * 1000 + (parseInt(extraMins)||0) * 60 * 1000;
 const formatAthar = (athar, extraMins) => { let p=[]; if(athar) p.push(`${athar} أثر`); if(extraMins) p.push(`${extraMins} دق`); return p.join(' + ') || '-'; };
 const totalMins = (athar, extraMins) => (parseFloat(athar)||0)*ATHAR_MINS + (parseInt(extraMins)||0);
@@ -442,29 +442,29 @@ function App() {
         const count = 100; // إنشاء مستمر لـ 100 تكرار في المستقبل
         const dates = [];
         const [sy, sm, sd] = startDate.split('-').map(Number);
-        let cur = new Date(sy, sm - 1, sd);
+        let cur = new Date(Date.UTC(sy, sm - 1, sd));
         
         // Generate dates
         if (recType === 'interval' || recType === 'days' || recType === 'weekday') {
             const intervalDays = recType === 'weekday' ? 7 : (parseInt(recValue) || 10);
             for (let i=0; i<count; i++) {
                 dates.push(new Date(cur));
-                cur.setDate(cur.getDate() + intervalDays);
+                cur.setUTCDate(cur.getUTCDate() + intervalDays);
             }
         } else if (recType === 'weekly') {
             if (!selectedDays || selectedDays.length === 0) { showToast("اختر يوماً واحداً على الأقل", "err"); return; }
             let addedCount = 0;
             while (addedCount < count) {
-                if (selectedDays.includes(cur.getDay())) {
+                if (selectedDays.includes(cur.getUTCDay())) {
                     dates.push(new Date(cur));
                     addedCount++;
                 }
-                cur.setDate(cur.getDate() + 1);
+                cur.setUTCDate(cur.getUTCDate() + 1);
             }
         } else if (recType === 'biweekly') {
             for (let i=0; i<count; i++) {
                 dates.push(new Date(cur));
-                cur.setDate(cur.getDate() + 14);
+                cur.setUTCDate(cur.getUTCDate() + 14);
             }
         } else if (recType === 'rotating') {
             if (!sequenceDays || sequenceDays.length === 0) { showToast("اختر يوماً واحداً على الأقل للتسلسل", "err"); return; }
@@ -473,9 +473,9 @@ function App() {
                     dates.push(new Date(cur));
                 } else {
                     const targetDay = parseInt(sequenceDays[i % sequenceDays.length]);
-                    cur.setDate(cur.getDate() + 1);
-                    while(cur.getDay() !== targetDay) {
-                        cur.setDate(cur.getDate() + 1);
+                    cur.setUTCDate(cur.getUTCDate() + 1);
+                    while(cur.getUTCDay() !== targetDay) {
+                        cur.setUTCDate(cur.getUTCDate() + 1);
                     }
                     dates.push(new Date(cur));
                 }
@@ -483,20 +483,19 @@ function App() {
         } else if (recType === 'multi_week') {
             const numWeeks = parseInt(cycleWeeks) || 1;
             let addedCount = 0;
-            let currentCycleWeek = 0;
-            let loopDays = 0;
+            const startDt = new Date(Date.UTC(sy, sm - 1, sd));
             while (addedCount < count) {
-                if (loopDays > 0 && cur.getDay() === 0) {
-                    currentCycleWeek++; // الأسبوع الجديد يبدأ يوم الأحد
-                }
+                const d1 = new Date(Date.UTC(startDt.getUTCFullYear(), startDt.getUTCMonth(), startDt.getUTCDate()));
+                const d2 = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate()));
+                const diffDays = Math.round((d2 - d1) / (24 * 60 * 60 * 1000));
+                const currentCycleWeek = Math.floor(diffDays / 7);
                 const weekIndex = currentCycleWeek % numWeeks;
                 const currentPattern = (weekPatterns||[])[weekIndex] || [];
-                if (currentPattern.includes(cur.getDay())) {
+                if (currentPattern.includes(cur.getUTCDay())) {
                     dates.push(new Date(cur));
                     addedCount++;
                 }
-                cur.setDate(cur.getDate() + 1);
-                loopDays++;
+                cur.setUTCDate(cur.getUTCDate() + 1);
             }
         }
         let patternLabel = `${raddahName} - `;
@@ -507,13 +506,17 @@ function App() {
         else if (recType === 'multi_week') patternLabel += `دورة أسابيع (${cycleWeeks} أسبوع)`;
         else patternLabel += `مخصص`;
 
-        let added=0, skipped=0;
+        let added=0, skipped=0, duplicateSkipped=0;
         const newRecords=[];
         dates.forEach((dt, i) => {
-            const dateStr = `${dt.getFullYear()}-${fmt(dt.getMonth()+1)}-${fmt(dt.getDate())}`;
-            const dayStr = DAYS[dt.getDay()];
+            const dateStr = `${dt.getUTCFullYear()}-${fmt(dt.getUTCMonth()+1)}-${fmt(dt.getUTCDate())}`;
+            const dayStr = DAYS[dt.getUTCDay()];
             const cycleItem = cycle[i % cycle.length];
             const {time} = cycleItem;
+            
+            const isDuplicate = records.some(r => r.date === dateStr && r.time === time && r.raddahName === raddahName);
+            if (isDuplicate) { duplicateSkipped++; return; }
+            
             if (!recurForm.ignoreConflict && hasConflict(dateStr,time,athar,null,recurForm.extraMins)) { skipped++; return; }
             newRecords.push({id:Date.now()+added,name,number,raddahName,athar,extraMins:recurForm.extraMins||"",time,date:dateStr,day:dayStr,sysLabel:patternLabel});
             added++;
@@ -521,23 +524,19 @@ function App() {
         
         if (newRecords.length>0) {
             setRecords(p=>[...p,...newRecords]);
-            if (skipped > 0) {
-                showToast(`تمت الجدولة: ${added} سجل. (تم تخطي ${skipped} سجل لوجود تعارض في أوقات محجوزة مسبقاً)`);
-            } else {
-                showToast(`تمت الجدولة بنجاح: ${added} سجل.`);
-            }
+            let statusMsg = `تمت الجدولة بنجاح: ${added} سجل.`;
+            if (skipped > 0) statusMsg += ` (تخطي ${skipped} تعارض)`;
+            if (duplicateSkipped > 0) statusMsg += ` (تخطي ${duplicateSkipped} مكرر)`;
+            showToast(statusMsg);
         } else {
-            if (skipped > 0) {
-                showToast(`لم يتم إنشاء السجلات! جميع المواعيد (${skipped}) تتعارض مع سجلات محجوزة مسبقاً. حاول تحديد خيار تجاهل التعارض.`,"err");
-            } else {
-                showToast(`لم يتم إنشاء أي سجلات.`,"err");
-            }
+            let errMsg = `لم يتم إنشاء أي سجلات.`;
+            if (skipped > 0) errMsg += ` (${skipped} تعارض)`;
+            if (duplicateSkipped > 0) errMsg += ` (${duplicateSkipped} مكرر)`;
+            showToast(errMsg, "err");
         }
         
         // Save pattern
         setPatterns(p=>[...p,{id:Date.now(),label:patternLabel,data:recurForm}]);
-        setRecurForm(ER);
-        showToast(`✅ أُضيف ${added} سجل${skipped>0?' | ⚠️ تجاوز '+skipped+' تعارض':''}`);
         setRecurForm(ER);
     };
 
